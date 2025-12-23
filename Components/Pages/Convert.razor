@@ -4,15 +4,13 @@
 
 <div class="container-fluid p-4">
     <!-- Drag & Drop Area -->
-    <div class="drop-zone p-5 text-center mb-4 @(isDragOver ? "drag-over" : "")"
-         @ondragover="HandleDragOver"
-         @ondragover:preventDefault
-         @ondragleave="HandleDragLeave"
-         @ondrop="HandleDrop"
-         @ondrop:preventDefault>
+    <div class="drop-zone p-5 text-center mb-4 @(isDragOver ? "drag-over" : "")">
         <i class="bi bi-cloud-upload display-4 text-muted mb-3"></i>
-        <h5 class="text-muted">Drag files or folders to add</h5>
-        <p class="text-muted small mb-0">Supported: PDF, Word, PowerPoint, Excel, HTML, XML, JSON, CSV, EPUB, ZIP</p>
+        <h5 class="text-muted">Drag files or folders anywhere in the window</h5>
+        <p class="text-muted small mb-2">Supported: PDF, Word, PowerPoint, Excel, HTML, XML, JSON, CSV, EPUB, ZIP</p>
+        <button class="btn btn-outline-primary btn-sm" @onclick="OpenFilePicker">
+            <i class="bi bi-folder2-open me-1"></i>Or click to select files
+        </button>
     </div>
 
     <!-- Output Options -->
@@ -22,34 +20,58 @@
         </div>
         <div class="card-body">
             <div class="row g-3">
-                <!-- Engine Selection -->
+                <!-- Engine Selection (Checkboxes) -->
                 <div class="col-md-4">
-                    <label class="form-label">Conversion Engine</label>
-                    <select class="form-select" @bind="selectedEngine">
-                        <option value="MarkItDown">MarkItDown (Standard)</option>
-                        <option value="Docling">Docling (Advanced PDF)</option>
-                        <option value="DoclingGpu">Docling (GPU/CUDA)</option>
-                    </select>
+                    <label class="form-label fw-bold">Conversion Engines</label>
+                    <p class="text-muted small mb-2">Select one or more engines:</p>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="useMarkItDown" @bind="useMarkItDown">
+                        <label class="form-check-label" for="useMarkItDown">
+                            <i class="bi bi-lightning-fill text-warning me-1"></i>MarkItDown
+                            <span class="text-muted small">→ _it.md</span>
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="useDocling" @bind="useDocling">
+                        <label class="form-check-label" for="useDocling">
+                            <i class="bi bi-file-earmark-pdf text-danger me-1"></i>Docling (CPU)
+                            <span class="text-muted small">→ _dl.md</span>
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="useDoclingGpu" @bind="useDoclingGpu">
+                        <label class="form-check-label" for="useDoclingGpu">
+                            <i class="bi bi-gpu-card text-success me-1"></i>Docling (GPU)
+                            <span class="text-muted small">→ _dlc.md</span>
+                        </label>
+                    </div>
+                    @if (!HasEngineSelected)
+                    {
+                        <div class="text-danger small mt-1">
+                            <i class="bi bi-exclamation-triangle me-1"></i>Select at least one engine
+                        </div>
+                    }
                 </div>
 
                 <!-- Engine Options -->
                 <div class="col-md-4">
-                    <label class="form-label">Engine Options</label>
+                    <label class="form-label fw-bold">Engine Options</label>
+                    <p class="text-muted small mb-2">For Docling engines:</p>
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" id="enableOcr" @bind="enableOcr"
-                               disabled="@(selectedEngine == "MarkItDown")">
+                               disabled="@(!useDocling && !useDoclingGpu)">
                         <label class="form-check-label" for="enableOcr">Enable OCR</label>
                     </div>
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" id="includeImages" @bind="includeImages"
-                               disabled="@(selectedEngine == "MarkItDown")">
+                               disabled="@(!useDocling && !useDoclingGpu)">
                         <label class="form-check-label" for="includeImages">Include Images</label>
                     </div>
                 </div>
 
                 <!-- Output Mode -->
                 <div class="col-md-4">
-                    <label class="form-label">Output Location</label>
+                    <label class="form-label fw-bold">Output Location</label>
                     <div class="form-check">
                         <input class="form-check-input" type="radio" name="outputMode" id="outputSame" 
                                checked="@useOriginalFolder" @onchange="() => useOriginalFolder = true">
@@ -64,7 +86,7 @@
                     {
                         <div class="input-group input-group-sm mt-2">
                             <input type="text" class="form-control" @bind="outputPath" placeholder="Output folder..." />
-                            <button class="btn btn-outline-secondary" type="button">
+                            <button class="btn btn-outline-secondary" type="button" @onclick="SelectOutputFolder">
                                 <i class="bi bi-folder2-open"></i>
                             </button>
                         </div>
@@ -77,7 +99,7 @@
     <!-- Action Buttons -->
     <div class="d-flex gap-2 mb-3">
         <button class="btn btn-primary" @onclick="StartConversion" 
-                disabled="@(queueItems.Count == 0 || isConverting || !AppState.IsVenvActive)">
+                disabled="@(queueItems.Count == 0 || isConverting || !AppState.IsVenvActive || !HasEngineSelected)">
             @if (isConverting)
             {
                 <span class="spinner-border spinner-border-sm me-1"></span>
@@ -119,7 +141,7 @@
             {
                 <div class="text-center text-muted py-5">
                     <i class="bi bi-inbox display-4"></i>
-                    <p class="mt-2">No files in queue. Drag files above to add.</p>
+                    <p class="mt-2">No files in queue. Drag files anywhere in the window to add.</p>
                 </div>
             }
             else
@@ -185,70 +207,140 @@
     private bool isConverting = false;
     private bool selectAll = false;
 
-    // Options
-    private string selectedEngine = "MarkItDown";
+    // Engine options (checkboxes)
+    private bool useMarkItDown = true;
+    private bool useDocling = false;
+    private bool useDoclingGpu = false;
+    
+    // Engine-specific options
     private bool enableOcr = false;
     private bool includeImages = false;
+    
+    // Output options
     private bool useOriginalFolder = true;
     private string outputPath = string.Empty;
 
     private CancellationTokenSource? cancellationTokenSource;
     private Action? _stateHandler;
+    private Action<List<string>>? _dropHandler;
 
     private int SelectedCount => queueItems.Count(x => x.IsSelected);
+    private bool HasEngineSelected => useMarkItDown || useDocling || useDoclingGpu;
+
+    // Supported file extensions
+    private static readonly HashSet<string> SupportedExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".pdf", ".docx", ".doc", ".pptx", ".ppt", ".xlsx", ".xls",
+        ".html", ".htm", ".xml", ".json", ".csv", ".epub", ".zip"
+    };
 
     protected override void OnInitialized()
     {
+        // Subscribe to AppState changes
         _stateHandler = async () => await InvokeAsync(StateHasChanged);
         AppState.OnChange += _stateHandler;
 
+        // Subscribe to MAUI native drop events
+        _dropHandler = HandleFilesDropped;
+        MainPage.OnFilesDropped += _dropHandler;
+
+        // Load saved settings
         outputPath = AppState.DefaultOutputPath;
         useOriginalFolder = AppState.UseOriginalFolderForOutput;
-        selectedEngine = AppState.SelectedEngine.ToString();
-        enableOcr = AppState.EnableOcr;
-        includeImages = AppState.IncludeImages;
     }
 
-    #region Drag and Drop
+    #region File Drop Handling
 
-    private void HandleDragOver(DragEventArgs e)
+    private void HandleFilesDropped(List<string> filePaths)
     {
-        isDragOver = true;
-    }
-
-    private void HandleDragLeave(DragEventArgs e)
-    {
-        isDragOver = false;
-    }
-
-    private async Task HandleDrop(DragEventArgs e)
-    {
-        isDragOver = false;
-        // In MAUI Blazor, file drop requires JS interop
-        // For now, we'll add sample files for demonstration
-        await AddSampleFiles();
-    }
-
-    private Task AddSampleFiles()
-    {
-        // This would be replaced with actual file handling via JS interop
-        var sampleFiles = new[]
+        foreach (var path in filePaths)
         {
-            new QueueItem { FileName = "document.pdf", FilePath = @"C:\Documents\document.pdf", FileType = "PDF" },
-            new QueueItem { FileName = "report.docx", FilePath = @"C:\Documents\report.docx", FileType = "DOCX" },
-            new QueueItem { FileName = "presentation.pptx", FilePath = @"C:\Documents\presentation.pptx", FileType = "PPTX" },
-        };
+            AddFileToQueue(path);
+        }
+        InvokeAsync(StateHasChanged);
+    }
 
-        foreach (var file in sampleFiles)
+    private void AddFileToQueue(string path)
+    {
+        // Check if it's a directory
+        if (Directory.Exists(path))
         {
-            if (!queueItems.Any(q => q.FilePath == file.FilePath))
+            // Add all supported files from directory
+            foreach (var file in Directory.GetFiles(path, "*.*", SearchOption.TopDirectoryOnly))
             {
-                queueItems.Add(file);
+                AddSingleFile(file);
             }
         }
+        else if (File.Exists(path))
+        {
+            AddSingleFile(path);
+        }
+    }
 
-        StateHasChanged();
-        return Task.CompletedTask;
+    private void AddSingleFile(string filePath)
+    {
+        var ext = Path.GetExtension(filePath);
+        if (!SupportedExtensions.Contains(ext))
+            return;
+
+        // Check for duplicates
+        if (queueItems.Any(q => q.FilePath.Equals(filePath, StringComparison.OrdinalIgnoreCase)))
+            return;
+
+        queueItems.Add(new QueueItem
+        {
+            FileName = Path.GetFileName(filePath),
+            FilePath = filePath,
+            FileType = ext.TrimStart('.').ToUpperInvariant(),
+            IsSelected = true,
+            Status = ConversionStatus.Queued
+        });
+    }
+
+    private async Task OpenFilePicker()
+    {
+        try
+        {
+            var options = new PickOptions
+            {
+                PickerTitle = "Select files to convert",
+                FileTypes = new FilePickerFileType(new Dictionary<DevicePlatform, IEnumerable<string>>
+                {
+                    { DevicePlatform.WinUI, SupportedExtensions.ToArray() }
+                })
+            };
+
+            var files = await FilePicker.Default.PickMultipleAsync(options);
+            if (files != null)
+            {
+                foreach (var file in files)
+                {
+                    AddSingleFile(file.FullPath);
+                }
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"FilePicker error: {ex.Message}");
+        }
+    }
+
+    private async Task SelectOutputFolder()
+    {
+        try
+        {
+            var result = await FolderPicker.Default.PickAsync();
+            if (result.IsSuccessful)
+            {
+                outputPath = result.Folder.Path;
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"FolderPicker error: {ex.Message}");
+        }
     }
 
     #endregion
@@ -289,7 +381,7 @@
     private async Task StartConversion()
     {
         var selectedItems = queueItems.Where(x => x.IsSelected && x.Status == ConversionStatus.Queued).ToList();
-        if (selectedItems.Count == 0) return;
+        if (selectedItems.Count == 0 || !HasEngineSelected) return;
 
         isConverting = true;
         cancellationTokenSource = new CancellationTokenSource();
@@ -304,7 +396,8 @@
                 item.Status = ConversionStatus.Converting;
                 StateHasChanged();
 
-                // Simulate conversion (replace with actual conversion logic)
+                // TODO: Replace with actual conversion logic using ConversionService
+                // For now, simulate conversion
                 await Task.Delay(2000, cancellationTokenSource.Token);
 
                 item.Status = ConversionStatus.Completed;
@@ -327,7 +420,6 @@
 
     private void PauseConversion()
     {
-        // Pause logic would require more complex state management
         cancellationTokenSource?.Cancel();
     }
 
@@ -378,6 +470,10 @@
         if (_stateHandler != null)
         {
             AppState.OnChange -= _stateHandler;
+        }
+        if (_dropHandler != null)
+        {
+            MainPage.OnFilesDropped -= _dropHandler;
         }
         cancellationTokenSource?.Dispose();
     }
