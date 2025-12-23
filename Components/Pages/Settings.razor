@@ -221,7 +221,7 @@
             Application Settings
         </div>
         <div class="card-body">
-            <div class="row">
+            <div class="row g-3">
                 <div class="col-md-6">
                     <div class="form-check form-switch mb-3">
                         <input class="form-check-input" type="checkbox" id="autoSave" @bind="autoSaveEnabled" />
@@ -237,10 +237,43 @@
                         <option value="ja">日本語</option>
                     </select>
                 </div>
+                <div class="col-md-6">
+                    <label class="form-label"><i class="bi bi-palette me-1"></i> Theme</label>
+                    <select class="form-select" @bind="theme">
+                        <option value="light">Light</option>
+                        <option value="dark">Dark</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label"><i class="bi bi-speedometer2 me-1"></i> Max Concurrent Conversions: @maxConcurrency</label>
+                    <input type="range" class="form-range" min="1" max="8" @bind="maxConcurrency" />
+                </div>
             </div>
         </div>
     </div>
 </div>
+
+<!-- Confirmation Modal -->
+@if (showConfirmDialog)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@confirmDialogTitle</h5>
+                    <button type="button" class="btn-close" @onclick="CancelConfirm"></button>
+                </div>
+                <div class="modal-body">
+                    <p>@confirmDialogMessage</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CancelConfirm">Cancel</button>
+                    <button type="button" class="btn @confirmDialogButtonClass" @onclick="ConfirmAction">@confirmDialogButtonText</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
 
 @code {
     // Python
@@ -272,8 +305,19 @@
     // App settings
     private bool autoSaveEnabled;
     private string language = "en";
+    private string theme = "light";
+    private int maxConcurrency = 3;
+
+    // Confirmation dialog
+    private bool showConfirmDialog = false;
+    private string confirmDialogTitle = "";
+    private string confirmDialogMessage = "";
+    private string confirmDialogButtonText = "Confirm";
+    private string confirmDialogButtonClass = "btn-primary";
+    private Func<Task>? confirmAction;
 
     private Action? _stateHandler;
+
 
     protected override async Task OnInitializedAsync()
     {
@@ -285,6 +329,8 @@
         venvPath = AppState.VirtualEnvPath;
         autoSaveEnabled = AppState.AutoSaveEnabled;
         language = AppState.Language;
+        theme = AppState.Theme;
+        maxConcurrency = AppState.MaxConcurrency;
 
         // Check current state
         await CheckPythonStatus();
@@ -327,9 +373,28 @@
 
     private async Task BrowsePython()
     {
-        // In a real implementation, we would use a file picker
-        // For now, just validate the current path
-        await CheckPythonStatus();
+        try
+        {
+            var options = new PickOptions
+            {
+                PickerTitle = "Select python.exe",
+                FileTypes = new FilePickerFileType(new Dictionary<DevicePlatform, IEnumerable<string>>
+                {
+                    { DevicePlatform.WinUI, new[] { ".exe" } }
+                })
+            };
+
+            var result = await FilePicker.Default.PickAsync(options);
+            if (result != null)
+            {
+                pythonPath = result.FullPath;
+                await CheckPythonStatus();
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"FilePicker error: {ex.Message}");
+        }
     }
 
     private async Task CheckPythonStatus()
@@ -432,19 +497,70 @@
 
     private async Task DeleteVenv()
     {
-        isVenvProcessing = true;
-        StateHasChanged();
+        ShowConfirmDialog(
+            "Delete Virtual Environment",
+            "Are you sure you want to delete the virtual environment? This action cannot be undone.",
+            "Delete",
+            "btn-danger",
+            async () =>
+            {
+                isVenvProcessing = true;
+                StateHasChanged();
 
-        var result = await Task.Run(() => PythonEnv.DeleteVenv(venvPath));
-        venvLog = result.message;
+                var result = await Task.Run(() => PythonEnv.DeleteVenv(venvPath));
+                venvLog = result.message;
 
-        isVenvProcessing = false;
-        await CheckVenvStatus();
+                isVenvProcessing = false;
+                await CheckVenvStatus();
+            });
     }
 
-    private void BrowseVenv()
+    private async Task BrowseVenv()
     {
-        // File picker implementation
+        try
+        {
+            var result = await FolderPicker.Default.PickAsync();
+            if (result.IsSuccessful)
+            {
+                venvPath = result.Folder.Path;
+                await CheckVenvStatus();
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"FolderPicker error: {ex.Message}");
+        }
+    }
+
+    #endregion
+
+    #region Confirmation Dialog
+
+    private void ShowConfirmDialog(string title, string message, string buttonText, string buttonClass, Func<Task> action)
+    {
+        confirmDialogTitle = title;
+        confirmDialogMessage = message;
+        confirmDialogButtonText = buttonText;
+        confirmDialogButtonClass = buttonClass;
+        confirmAction = action;
+        showConfirmDialog = true;
+        StateHasChanged();
+    }
+
+    private async Task ConfirmAction()
+    {
+        showConfirmDialog = false;
+        if (confirmAction != null)
+        {
+            await confirmAction();
+        }
+        StateHasChanged();
+    }
+
+    private void CancelConfirm()
+    {
+        showConfirmDialog = false;
+        confirmAction = null;
         StateHasChanged();
     }
 
@@ -551,6 +667,26 @@
         {
             language = value;
             AppState.Language = value;
+        }
+    }
+
+    private string Theme
+    {
+        get => theme;
+        set
+        {
+            theme = value;
+            AppState.Theme = value;
+        }
+    }
+
+    private int MaxConcurrency
+    {
+        get => maxConcurrency;
+        set
+        {
+            maxConcurrency = value;
+            AppState.MaxConcurrency = value;
         }
     }
 

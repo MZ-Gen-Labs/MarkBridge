@@ -59,6 +59,12 @@ public class AppStateService
         set { _settings.Language = value; NotifyStateChanged(); }
     }
 
+    public string Theme
+    {
+        get => _settings.Theme;
+        set { _settings.Theme = value; NotifyStateChanged(); }
+    }
+
     public int MaxConcurrency
     {
         get => _settings.MaxConcurrency;
@@ -173,6 +179,7 @@ public class AppSettings
     public bool UseOriginalFolderForOutput { get; set; } = true;
     public bool AutoSaveEnabled { get; set; } = true;
     public string Language { get; set; } = "en";
+    public string Theme { get; set; } = "light";
     public int MaxConcurrency { get; set; } = 3;
     public ConversionEngine SelectedEngine { get; set; } = ConversionEngine.MarkItDown;
     public bool EnableOcr { get; set; } = false;
