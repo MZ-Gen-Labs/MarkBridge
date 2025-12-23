@@ -140,7 +140,7 @@
                         <span class="text-muted ms-2">Standard converter, fast and lightweight</span>
                         @if (!string.IsNullOrEmpty(markitdownVersion))
                         {
-                            <span class="badge bg-success ms-2">v@markitdownVersion</span>
+                            <span class="badge bg-success ms-2">v@(markitdownVersion)</span>
                         }
                     </div>
                     <button class="btn @(markitdownInstalled ? "btn-outline-secondary" : "btn-primary")" 
@@ -161,7 +161,7 @@
                         <span class="text-muted ms-2">Advanced PDF parsing, OCR support</span>
                         @if (!string.IsNullOrEmpty(doclingVersion))
                         {
-                            <span class="badge bg-success ms-2">v@doclingVersion</span>
+                            <span class="badge bg-success ms-2">v@(doclingVersion)</span>
                         }
                     </div>
                     <button class="btn @(doclingInstalled ? "btn-outline-secondary" : "btn-primary")" 
@@ -224,7 +224,7 @@
             <div class="row g-3">
                 <div class="col-md-6">
                     <div class="form-check form-switch mb-3">
-                        <input class="form-check-input" type="checkbox" id="autoSave" @bind="autoSaveEnabled" />
+                        <input class="form-check-input" type="checkbox" id="autoSave" @bind="AutoSaveEnabled" />
                         <label class="form-check-label" for="autoSave">
                             <i class="bi bi-save me-1"></i> Auto-save in Editor
                         </label>
@@ -232,21 +232,21 @@
                 </div>
                 <div class="col-md-6">
                     <label class="form-label"><i class="bi bi-translate me-1"></i> Language</label>
-                    <select class="form-select" @bind="language">
+                    <select class="form-select" @bind="Language">
                         <option value="en">English</option>
                         <option value="ja">日本語</option>
                     </select>
                 </div>
                 <div class="col-md-6">
                     <label class="form-label"><i class="bi bi-palette me-1"></i> Theme</label>
-                    <select class="form-select" @bind="theme">
+                    <select class="form-select" @bind="Theme">
                         <option value="light">Light</option>
                         <option value="dark">Dark</option>
                     </select>
                 </div>
                 <div class="col-md-6">
-                    <label class="form-label"><i class="bi bi-speedometer2 me-1"></i> Max Concurrent Conversions: @maxConcurrency</label>
-                    <input type="range" class="form-range" min="1" max="8" @bind="maxConcurrency" />
+                    <label class="form-label"><i class="bi bi-speedometer2 me-1"></i> Max Concurrent Conversions: @MaxConcurrency</label>
+                    <input type="range" class="form-range" min="1" max="8" @bind="MaxConcurrency" />
                 </div>
             </div>
         </div>

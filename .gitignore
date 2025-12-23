@@ -3,45 +3,16 @@ bin/
 obj/
 *.user
 *.suo
-*.cache
-*.log
-
-# Visual Studio
-.vs/
-*.rsuser
-launchSettings.json
-
-# MAUI
-*.mauiversion
-
-# Build results
-[Dd]ebug/
-[Rr]elease/
-x64/
-x86/
-[Pp]ublish/
-
-# NuGet
-*.nupkg
-.nuget/
-packages/
-
-# Windows
-Thumbs.db
-ehthumbs.db
-Desktop.ini
 
 # Python
 __pycache__/
 *.py[cod]
 .venv/
-venv/
 
 # IDE
+.vs/
 .idea/
-*.swp
-*.swo
-*~
 
 # OS
+Thumbs.db
 .DS_Store
