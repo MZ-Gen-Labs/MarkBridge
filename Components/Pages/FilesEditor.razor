@@ -7,11 +7,14 @@
     <div class="border-end d-flex flex-column" style="width: 300px; min-width: 250px;">
         <!-- Toolbar -->
         <div class="p-2 border-bottom bg-body-tertiary d-flex gap-1">
+            <button class="btn btn-sm btn-outline-primary" @onclick="OpenFolder" title="Open Folder">
+                <i class="bi bi-folder2-open"></i>
+            </button>
             <button class="btn btn-sm btn-outline-secondary" @onclick="RefreshFiles" title="Refresh">
                 <i class="bi bi-arrow-clockwise"></i>
             </button>
-            <button class="btn btn-sm btn-outline-secondary" @onclick="CreateFolder" title="New Folder">
-                <i class="bi bi-folder-plus"></i>
+            <button class="btn btn-sm btn-outline-secondary" @onclick="GoUp" title="Go Up" disabled="@string.IsNullOrEmpty(currentPath)">
+                <i class="bi bi-arrow-up"></i>
             </button>
             <button class="btn btn-sm btn-outline-secondary" @onclick="DeleteSelected" 
                     disabled="@(selectedFile == null)" title="Delete">
@@ -20,9 +23,6 @@
             <div class="input-group input-group-sm flex-grow-1">
                 <input type="text" class="form-control" placeholder="Search..." @bind="searchQuery" 
                        @bind:event="oninput" />
-                <button class="btn btn-outline-secondary" type="button">
-                    <i class="bi bi-search"></i>
-                </button>
             </div>
         </div>
 
@@ -133,14 +133,14 @@
                 @if (editorMode == "edit")
                 {
                     <textarea class="form-control h-100 border-0 rounded-0" 
-                              style="font-family: 'Cascadia Code', 'Consolas', monospace; resize: none;"
+                              style="font-family: 'Cascadia Code', 'Consolas', monospace; resize: none; font-size: 14px;"
                               @bind="editorContent"
                               @bind:event="oninput"
                               @onkeydown="HandleKeyDown"></textarea>
                 }
                 else
                 {
-                    <div class="markdown-preview">
+                    <div class="markdown-preview p-3">
                         @((MarkupString)renderedMarkdown)
                     </div>
                 }
@@ -156,7 +156,8 @@
     private string searchQuery = string.Empty;
     private bool isLoading = false;
 
-    // Editor
+    // Monaco Editor
+    private BlazorMonaco.Editor.StandaloneCodeEditor? _editor;
     private string editorContent = string.Empty;
     private string originalContent = string.Empty;
     private string editorMode = "edit";
@@ -169,6 +170,40 @@
     private IEnumerable<FileItem> FilteredItems => string.IsNullOrEmpty(searchQuery)
         ? fileItems
         : fileItems.Where(f => f.Name.Contains(searchQuery, StringComparison.OrdinalIgnoreCase));
+
+    // Monaco Editor Options
+    private BlazorMonaco.Editor.StandaloneEditorConstructionOptions EditorConstructionOptions(BlazorMonaco.Editor.StandaloneCodeEditor editor)
+    {
+        return new BlazorMonaco.Editor.StandaloneEditorConstructionOptions
+        {
+            Language = "markdown",
+            Theme = AppState.Theme == "dark" ? "vs-dark" : "vs",
+            Value = editorContent,
+            AutomaticLayout = true,
+            WordWrap = "on",
+            Minimap = new BlazorMonaco.Editor.EditorMinimapOptions { Enabled = false },
+            FontFamily = "'Cascadia Code', 'Consolas', monospace",
+            FontSize = 14,
+            LineNumbers = "on"
+        };
+    }
+
+    private async Task EditorOnDidInit()
+    {
+        if (_editor != null && !string.IsNullOrEmpty(editorContent))
+        {
+            await _editor.SetValue(editorContent);
+        }
+    }
+
+    private async Task EditorOnDidChangeContent(BlazorMonaco.Editor.ModelContentChangedEvent e)
+    {
+        if (_editor != null)
+        {
+            editorContent = await _editor.GetValue();
+            await InvokeAsync(StateHasChanged);
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -251,6 +286,37 @@
         await LoadFiles();
     }
 
+    private async Task OpenFolder()
+    {
+        try
+        {
+            var result = await FolderPicker.Default.PickAsync();
+            if (result.IsSuccessful)
+            {
+                currentPath = result.Folder.Path;
+                await LoadFiles();
+                selectedFile = null;
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"FolderPicker error: {ex.Message}");
+        }
+    }
+
+    private async Task GoUp()
+    {
+        if (string.IsNullOrEmpty(currentPath)) return;
+        
+        var parent = Directory.GetParent(currentPath);
+        if (parent != null)
+        {
+            currentPath = parent.FullName;
+            await LoadFiles();
+            selectedFile = null;
+        }
+    }
+
     private async Task SelectFile(FileItem item)
     {
         if (hasUnsavedChanges)
@@ -286,12 +352,21 @@
         {
             editorContent = await File.ReadAllTextAsync(path);
             originalContent = editorContent;
+            
+            // Set Monaco Editor content if editor is available
+            if (_editor != null)
+            {
+                await _editor.SetValue(editorContent);
+            }
+            
             RenderMarkdown();
+            StateHasChanged();
         }
         catch (Exception ex)
         {
             editorContent = $"Error loading file: {ex.Message}";
             originalContent = editorContent;
+            System.Diagnostics.Debug.WriteLine($"Error loading file: {ex.Message}");
         }
     }
 
