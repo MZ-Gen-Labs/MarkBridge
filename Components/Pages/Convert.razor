@@ -1,0 +1,403 @@
+@inject Services.AppStateService AppState
+@inject IJSRuntime JS
+@implements IDisposable
+
+<div class="container-fluid p-4">
+    <!-- Drag & Drop Area -->
+    <div class="drop-zone p-5 text-center mb-4 @(isDragOver ? "drag-over" : "")"
+         @ondragover="HandleDragOver"
+         @ondragover:preventDefault
+         @ondragleave="HandleDragLeave"
+         @ondrop="HandleDrop"
+         @ondrop:preventDefault>
+        <i class="bi bi-cloud-upload display-4 text-muted mb-3"></i>
+        <h5 class="text-muted">Drag files or folders to add</h5>
+        <p class="text-muted small mb-0">Supported: PDF, Word, PowerPoint, Excel, HTML, XML, JSON, CSV, EPUB, ZIP</p>
+    </div>
+
+    <!-- Output Options -->
+    <div class="settings-card mb-4">
+        <div class="card-header">
+            <i class="bi bi-sliders me-2"></i>Output Options
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <!-- Engine Selection -->
+                <div class="col-md-4">
+                    <label class="form-label">Conversion Engine</label>
+                    <select class="form-select" @bind="selectedEngine">
+                        <option value="MarkItDown">MarkItDown (Standard)</option>
+                        <option value="Docling">Docling (Advanced PDF)</option>
+                        <option value="DoclingGpu">Docling (GPU/CUDA)</option>
+                    </select>
+                </div>
+
+                <!-- Engine Options -->
+                <div class="col-md-4">
+                    <label class="form-label">Engine Options</label>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="enableOcr" @bind="enableOcr"
+                               disabled="@(selectedEngine == "MarkItDown")">
+                        <label class="form-check-label" for="enableOcr">Enable OCR</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="includeImages" @bind="includeImages"
+                               disabled="@(selectedEngine == "MarkItDown")">
+                        <label class="form-check-label" for="includeImages">Include Images</label>
+                    </div>
+                </div>
+
+                <!-- Output Mode -->
+                <div class="col-md-4">
+                    <label class="form-label">Output Location</label>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="outputMode" id="outputSame" 
+                               checked="@useOriginalFolder" @onchange="() => useOriginalFolder = true">
+                        <label class="form-check-label" for="outputSame">Same as original file</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="outputMode" id="outputCustom"
+                               checked="@(!useOriginalFolder)" @onchange="() => useOriginalFolder = false">
+                        <label class="form-check-label" for="outputCustom">Specific folder</label>
+                    </div>
+                    @if (!useOriginalFolder)
+                    {
+                        <div class="input-group input-group-sm mt-2">
+                            <input type="text" class="form-control" @bind="outputPath" placeholder="Output folder..." />
+                            <button class="btn btn-outline-secondary" type="button">
+                                <i class="bi bi-folder2-open"></i>
+                            </button>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="d-flex gap-2 mb-3">
+        <button class="btn btn-primary" @onclick="StartConversion" 
+                disabled="@(queueItems.Count == 0 || isConverting || !AppState.IsVenvActive)">
+            @if (isConverting)
+            {
+                <span class="spinner-border spinner-border-sm me-1"></span>
+                <span>Converting...</span>
+            }
+            else
+            {
+                <i class="bi bi-play-fill me-1"></i>
+                <span>Start Selected Conversions</span>
+            }
+        </button>
+        @if (isConverting)
+        {
+            <button class="btn btn-warning" @onclick="PauseConversion">
+                <i class="bi bi-pause-fill me-1"></i>Pause
+            </button>
+            <button class="btn btn-danger" @onclick="CancelConversion">
+                <i class="bi bi-x-circle me-1"></i>Cancel
+            </button>
+        }
+        <div class="ms-auto">
+            <button class="btn btn-outline-secondary" @onclick="RemoveSelected" disabled="@(SelectedCount == 0)">
+                <i class="bi bi-trash me-1"></i>Remove Selected
+            </button>
+            <button class="btn btn-outline-secondary" @onclick="ClearAll" disabled="@(queueItems.Count == 0)">
+                <i class="bi bi-x-lg me-1"></i>Clear All
+            </button>
+        </div>
+    </div>
+
+    <!-- Conversion Queue -->
+    <div class="settings-card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-list-ul me-2"></i>Conversion Queue</span>
+            <span class="badge bg-secondary">@queueItems.Count files</span>
+        </div>
+        <div class="card-body p-0">
+            @if (queueItems.Count == 0)
+            {
+                <div class="text-center text-muted py-5">
+                    <i class="bi bi-inbox display-4"></i>
+                    <p class="mt-2">No files in queue. Drag files above to add.</p>
+                </div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-hover queue-table mb-0">
+                        <thead>
+                            <tr>
+                                <th style="width: 40px;">
+                                    <input type="checkbox" class="form-check-input" 
+                                           @bind="selectAll" @onclick="ToggleSelectAll" />
+                                </th>
+                                <th>Name</th>
+                                <th style="width: 100px;">File Type</th>
+                                <th>Path</th>
+                                <th style="width: 140px;">Status</th>
+                                <th style="width: 50px;"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in queueItems)
+                            {
+                                <tr>
+                                    <td>
+                                        <input type="checkbox" class="form-check-input" @bind="item.IsSelected" />
+                                    </td>
+                                    <td>
+                                        <i class="bi @GetFileIcon(item.FileType) me-2"></i>
+                                        @item.FileName
+                                    </td>
+                                    <td><span class="badge bg-light text-dark">@item.FileType</span></td>
+                                    <td class="text-truncate" style="max-width: 300px;" title="@item.FilePath">
+                                        @item.FilePath
+                                    </td>
+                                    <td>
+                                        <span class="queue-item-status @GetStatusClass(item.Status)">
+                                            @if (item.Status == ConversionStatus.Converting)
+                                            {
+                                                <span class="spinner-border spinner-border-sm me-1"></span>
+                                            }
+                                            @item.Status
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm btn-link text-danger p-0" @onclick="() => RemoveItem(item)"
+                                                title="Remove">
+                                            <i class="bi bi-x-lg"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<QueueItem> queueItems = new();
+    private bool isDragOver = false;
+    private bool isConverting = false;
+    private bool selectAll = false;
+
+    // Options
+    private string selectedEngine = "MarkItDown";
+    private bool enableOcr = false;
+    private bool includeImages = false;
+    private bool useOriginalFolder = true;
+    private string outputPath = string.Empty;
+
+    private CancellationTokenSource? cancellationTokenSource;
+    private Action? _stateHandler;
+
+    private int SelectedCount => queueItems.Count(x => x.IsSelected);
+
+    protected override void OnInitialized()
+    {
+        _stateHandler = async () => await InvokeAsync(StateHasChanged);
+        AppState.OnChange += _stateHandler;
+
+        outputPath = AppState.DefaultOutputPath;
+        useOriginalFolder = AppState.UseOriginalFolderForOutput;
+        selectedEngine = AppState.SelectedEngine.ToString();
+        enableOcr = AppState.EnableOcr;
+        includeImages = AppState.IncludeImages;
+    }
+
+    #region Drag and Drop
+
+    private void HandleDragOver(DragEventArgs e)
+    {
+        isDragOver = true;
+    }
+
+    private void HandleDragLeave(DragEventArgs e)
+    {
+        isDragOver = false;
+    }
+
+    private async Task HandleDrop(DragEventArgs e)
+    {
+        isDragOver = false;
+        // In MAUI Blazor, file drop requires JS interop
+        // For now, we'll add sample files for demonstration
+        await AddSampleFiles();
+    }
+
+    private Task AddSampleFiles()
+    {
+        // This would be replaced with actual file handling via JS interop
+        var sampleFiles = new[]
+        {
+            new QueueItem { FileName = "document.pdf", FilePath = @"C:\Documents\document.pdf", FileType = "PDF" },
+            new QueueItem { FileName = "report.docx", FilePath = @"C:\Documents\report.docx", FileType = "DOCX" },
+            new QueueItem { FileName = "presentation.pptx", FilePath = @"C:\Documents\presentation.pptx", FileType = "PPTX" },
+        };
+
+        foreach (var file in sampleFiles)
+        {
+            if (!queueItems.Any(q => q.FilePath == file.FilePath))
+            {
+                queueItems.Add(file);
+            }
+        }
+
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    #endregion
+
+    #region Queue Management
+
+    private void ToggleSelectAll()
+    {
+        var newValue = !selectAll;
+        foreach (var item in queueItems)
+        {
+            item.IsSelected = newValue;
+        }
+    }
+
+    private void RemoveItem(QueueItem item)
+    {
+        queueItems.Remove(item);
+        StateHasChanged();
+    }
+
+    private void RemoveSelected()
+    {
+        queueItems.RemoveAll(x => x.IsSelected);
+        StateHasChanged();
+    }
+
+    private void ClearAll()
+    {
+        queueItems.Clear();
+        StateHasChanged();
+    }
+
+    #endregion
+
+    #region Conversion
+
+    private async Task StartConversion()
+    {
+        var selectedItems = queueItems.Where(x => x.IsSelected && x.Status == ConversionStatus.Queued).ToList();
+        if (selectedItems.Count == 0) return;
+
+        isConverting = true;
+        cancellationTokenSource = new CancellationTokenSource();
+        AppState.SetStatus("Converting files...", true);
+
+        try
+        {
+            foreach (var item in selectedItems)
+            {
+                if (cancellationTokenSource.Token.IsCancellationRequested) break;
+
+                item.Status = ConversionStatus.Converting;
+                StateHasChanged();
+
+                // Simulate conversion (replace with actual conversion logic)
+                await Task.Delay(2000, cancellationTokenSource.Token);
+
+                item.Status = ConversionStatus.Completed;
+                StateHasChanged();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Cancelled
+        }
+        finally
+        {
+            isConverting = false;
+            cancellationTokenSource?.Dispose();
+            cancellationTokenSource = null;
+            AppState.SetStatus("Ready");
+            StateHasChanged();
+        }
+    }
+
+    private void PauseConversion()
+    {
+        // Pause logic would require more complex state management
+        cancellationTokenSource?.Cancel();
+    }
+
+    private void CancelConversion()
+    {
+        cancellationTokenSource?.Cancel();
+        
+        // Reset converting items to queued
+        foreach (var item in queueItems.Where(x => x.Status == ConversionStatus.Converting))
+        {
+            item.Status = ConversionStatus.Queued;
+        }
+    }
+
+    #endregion
+
+    #region Helpers
+
+    private string GetFileIcon(string fileType) => fileType.ToUpper() switch
+    {
+        "PDF" => "bi-file-earmark-pdf text-danger",
+        "DOCX" or "DOC" => "bi-file-earmark-word text-primary",
+        "XLSX" or "XLS" => "bi-file-earmark-excel text-success",
+        "PPTX" or "PPT" => "bi-file-earmark-ppt text-warning",
+        "HTML" or "HTM" => "bi-file-earmark-code",
+        "XML" => "bi-file-earmark-code",
+        "JSON" => "bi-file-earmark-code",
+        "CSV" => "bi-file-earmark-spreadsheet",
+        "EPUB" => "bi-book",
+        "ZIP" => "bi-file-earmark-zip",
+        _ => "bi-file-earmark"
+    };
+
+    private string GetStatusClass(ConversionStatus status) => status switch
+    {
+        ConversionStatus.Queued => "status-queued",
+        ConversionStatus.Converting => "status-converting",
+        ConversionStatus.Completed => "status-completed",
+        ConversionStatus.Failed => "status-failed",
+        ConversionStatus.Unsupported => "status-unsupported",
+        _ => ""
+    };
+
+    #endregion
+
+    public void Dispose()
+    {
+        if (_stateHandler != null)
+        {
+            AppState.OnChange -= _stateHandler;
+        }
+        cancellationTokenSource?.Dispose();
+    }
+
+    public class QueueItem
+    {
+        public string FileName { get; set; } = string.Empty;
+        public string FilePath { get; set; } = string.Empty;
+        public string FileType { get; set; } = string.Empty;
+        public bool IsSelected { get; set; } = true;
+        public ConversionStatus Status { get; set; } = ConversionStatus.Queued;
+        public string? ErrorMessage { get; set; }
+    }
+
+    public enum ConversionStatus
+    {
+        Queued,
+        Converting,
+        Completed,
+        Failed,
+        Unsupported
+    }
+}

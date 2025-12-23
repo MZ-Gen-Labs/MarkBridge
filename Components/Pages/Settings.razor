@@ -1,0 +1,566 @@
+@page "/settings"
+@inject Services.AppStateService AppState
+@inject Services.PythonEnvironmentService PythonEnv
+@implements IDisposable
+
+<div class="container-fluid p-4">
+    <h4 class="mb-4"><i class="bi bi-gear me-2"></i>Settings</h4>
+
+    <!-- 1. System Python Installation -->
+    <div class="settings-card mb-4">
+        <div class="card-header d-flex align-items-center">
+            <span class="badge bg-primary me-2">1</span>
+            System Python Installation
+        </div>
+        <div class="card-body">
+            <div class="row align-items-end mb-3">
+                <div class="col">
+                    <label class="form-label">System Python Path:</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control" @bind="pythonPath" placeholder="python.exe path" />
+                        <button class="btn btn-outline-secondary" @onclick="BrowsePython">
+                            <i class="bi bi-folder2-open"></i> Browse...
+                        </button>
+                        <button class="btn btn-outline-primary" @onclick="AutoDetectPython" disabled="@isDetecting">
+                            @if (isDetecting)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1"></span>
+                            }
+                            <i class="bi bi-search"></i> Auto-Detect
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            @if (!string.IsNullOrEmpty(pythonStatus))
+            {
+                <div class="status-indicator @pythonStatusClass">
+                    <i class="bi @pythonStatusIcon me-2"></i>
+                    @pythonStatus
+                </div>
+            }
+            
+            @if (showPythonDownload)
+            {
+                <div class="alert alert-info mt-3 mb-0">
+                    <i class="bi bi-info-circle me-2"></i>
+                    Python 3.10 or later is required.
+                    <a href="https://www.python.org/downloads/" target="_blank" class="alert-link">
+                        Download Python <i class="bi bi-box-arrow-up-right"></i>
+                    </a>
+                </div>
+            }
+        </div>
+    </div>
+
+    <!-- 2. Virtual Environment -->
+    <div class="settings-card mb-4">
+        <div class="card-header d-flex align-items-center">
+            <span class="badge bg-primary me-2">2</span>
+            MarkBridge Virtual Environment
+        </div>
+        <div class="card-body">
+            <div class="row align-items-end mb-3">
+                <div class="col">
+                    <label class="form-label">Virtual Environment Path:</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control" @bind="venvPath" />
+                        <button class="btn btn-outline-secondary" @onclick="BrowseVenv">
+                            <i class="bi bi-folder2-open"></i> Browse...
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-flex align-items-center justify-content-between">
+                <div class="status-indicator @venvStatusClass">
+                    <i class="bi @venvStatusIcon me-2"></i>
+                    @venvStatus
+                </div>
+                <div class="btn-group">
+                    @if (!venvExists)
+                    {
+                        <button class="btn btn-success" @onclick="CreateVenv" disabled="@(isVenvProcessing || string.IsNullOrEmpty(pythonPath))">
+                            @if (isVenvProcessing)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1"></span>
+                            }
+                            <i class="bi bi-plus-circle me-1"></i> Create Virtual Environment
+                        </button>
+                    }
+                    else
+                    {
+                        <button class="btn btn-warning" @onclick="RebuildVenv" disabled="@isVenvProcessing">
+                            @if (isVenvProcessing)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1"></span>
+                            }
+                            <i class="bi bi-arrow-clockwise me-1"></i> Rebuild Environment
+                        </button>
+                        <button class="btn btn-outline-danger" @onclick="DeleteVenv" disabled="@isVenvProcessing">
+                            <i class="bi bi-trash me-1"></i> Delete Venv
+                        </button>
+                    }
+                </div>
+            </div>
+
+            @if (!string.IsNullOrEmpty(venvLog))
+            {
+                <div class="mt-3">
+                    <label class="form-label d-flex justify-content-between">
+                        <span>Log:</span>
+                        <button class="btn btn-sm btn-link p-0" @onclick="() => venvLog = string.Empty">Clear</button>
+                    </label>
+                    <pre class="bg-dark text-light p-2 rounded" style="max-height: 150px; overflow-y: auto; font-size: 0.8rem;">@venvLog</pre>
+                </div>
+            }
+        </div>
+    </div>
+
+    <!-- 3. Library Installation -->
+    <div class="settings-card mb-4">
+        <div class="card-header d-flex align-items-center">
+            <span class="badge bg-primary me-2">3</span>
+            MarkBridge Environment Setup
+        </div>
+        <div class="card-body">
+            @if (!venvExists)
+            {
+                <div class="alert alert-warning mb-0">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    Please create a virtual environment first.
+                </div>
+            }
+            else
+            {
+                <!-- MarkItDown -->
+                <div class="d-flex align-items-center justify-content-between mb-3 pb-3 border-bottom">
+                    <div>
+                        <strong>MarkItDown</strong>
+                        <span class="text-muted ms-2">Standard converter, fast and lightweight</span>
+                        @if (!string.IsNullOrEmpty(markitdownVersion))
+                        {
+                            <span class="badge bg-success ms-2">v@markitdownVersion</span>
+                        }
+                    </div>
+                    <button class="btn @(markitdownInstalled ? "btn-outline-secondary" : "btn-primary")" 
+                            @onclick="InstallMarkItDown" disabled="@isInstalling">
+                        @if (isInstalling && installingPackage == "markitdown")
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                        }
+                        <i class="bi @(markitdownInstalled ? "bi-arrow-clockwise" : "bi-download") me-1"></i>
+                        @(markitdownInstalled ? "Update" : "Install") MarkItDown
+                    </button>
+                </div>
+
+                <!-- Docling -->
+                <div class="d-flex align-items-center justify-content-between mb-3 pb-3 border-bottom">
+                    <div>
+                        <strong>Docling</strong>
+                        <span class="text-muted ms-2">Advanced PDF parsing, OCR support</span>
+                        @if (!string.IsNullOrEmpty(doclingVersion))
+                        {
+                            <span class="badge bg-success ms-2">v@doclingVersion</span>
+                        }
+                    </div>
+                    <button class="btn @(doclingInstalled ? "btn-outline-secondary" : "btn-primary")" 
+                            @onclick="InstallDocling" disabled="@isInstalling">
+                        @if (isInstalling && installingPackage == "docling")
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                        }
+                        <i class="bi @(doclingInstalled ? "bi-arrow-clockwise" : "bi-download") me-1"></i>
+                        @(doclingInstalled ? "Update" : "Install") Docling
+                    </button>
+                </div>
+
+                <!-- CUDA Support -->
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <strong>NVIDIA CUDA Support</strong>
+                        <span class="text-muted ms-2">GPU acceleration for Docling</span>
+                    </div>
+                    <div class="btn-group">
+                        <button class="btn btn-outline-secondary" @onclick="() => InstallCuda(false)" disabled="@isInstalling">
+                            @if (isInstalling && installingPackage == "cuda")
+                            {
+                                <span class="spinner-border spinner-border-sm me-1"></span>
+                            }
+                            <i class="bi bi-gpu-card me-1"></i> Install CUDA
+                        </button>
+                        <button class="btn btn-outline-secondary" @onclick="() => InstallCuda(true)" disabled="@isInstalling"
+                                title="For RTX 50 series (Blackwell) - requires CUDA 12.8">
+                            @if (isInstalling && installingPackage == "cuda-nightly")
+                            {
+                                <span class="spinner-border spinner-border-sm me-1"></span>
+                            }
+                            <i class="bi bi-lightning me-1"></i> Nightly (RTX 50xx)
+                        </button>
+                    </div>
+                </div>
+
+                @if (!string.IsNullOrEmpty(installLog))
+                {
+                    <div class="mt-3">
+                        <label class="form-label d-flex justify-content-between">
+                            <span>Installation Log:</span>
+                            <button class="btn btn-sm btn-link p-0" @onclick="() => installLog = string.Empty">Clear</button>
+                        </label>
+                        <pre class="bg-dark text-light p-2 rounded" style="max-height: 200px; overflow-y: auto; font-size: 0.8rem;">@installLog</pre>
+                    </div>
+                }
+            }
+        </div>
+    </div>
+
+    <!-- 4. Application Settings -->
+    <div class="settings-card">
+        <div class="card-header d-flex align-items-center">
+            <span class="badge bg-primary me-2">4</span>
+            Application Settings
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" id="autoSave" @bind="autoSaveEnabled" />
+                        <label class="form-check-label" for="autoSave">
+                            <i class="bi bi-save me-1"></i> Auto-save in Editor
+                        </label>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label"><i class="bi bi-translate me-1"></i> Language</label>
+                    <select class="form-select" @bind="language">
+                        <option value="en">English</option>
+                        <option value="ja">日本語</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    // Python
+    private string pythonPath = string.Empty;
+    private string pythonStatus = string.Empty;
+    private string pythonStatusClass = string.Empty;
+    private string pythonStatusIcon = string.Empty;
+    private bool isDetecting = false;
+    private bool showPythonDownload = false;
+
+    // Venv
+    private string venvPath = string.Empty;
+    private string venvStatus = "Not configured";
+    private string venvStatusClass = "status-warning";
+    private string venvStatusIcon = "bi-exclamation-triangle";
+    private bool venvExists = false;
+    private bool isVenvProcessing = false;
+    private string venvLog = string.Empty;
+
+    // Packages
+    private bool markitdownInstalled = false;
+    private string? markitdownVersion;
+    private bool doclingInstalled = false;
+    private string? doclingVersion;
+    private bool isInstalling = false;
+    private string installingPackage = string.Empty;
+    private string installLog = string.Empty;
+
+    // App settings
+    private bool autoSaveEnabled;
+    private string language = "en";
+
+    private Action? _stateHandler;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _stateHandler = async () => await InvokeAsync(StateHasChanged);
+        AppState.OnChange += _stateHandler;
+
+        // Load current settings
+        pythonPath = AppState.SystemPythonPath;
+        venvPath = AppState.VirtualEnvPath;
+        autoSaveEnabled = AppState.AutoSaveEnabled;
+        language = AppState.Language;
+
+        // Check current state
+        await CheckPythonStatus();
+        await CheckVenvStatus();
+    }
+
+    #region Python Methods
+
+    private async Task AutoDetectPython()
+    {
+        isDetecting = true;
+        pythonStatus = "Detecting Python...";
+        pythonStatusClass = "status-processing";
+        pythonStatusIcon = "bi-hourglass-split";
+        StateHasChanged();
+
+        var result = await Task.Run(() => PythonEnv.AutoDetectPythonAsync());
+
+        if (result.found)
+        {
+            pythonPath = result.path;
+            AppState.SystemPythonPath = result.path;
+            AppState.PythonVersion = result.version;
+            pythonStatus = $"Python {result.version} found.";
+            pythonStatusClass = "status-ready";
+            pythonStatusIcon = "bi-check-circle-fill";
+            showPythonDownload = false;
+        }
+        else
+        {
+            pythonStatus = "Python not found.";
+            pythonStatusClass = "status-error";
+            pythonStatusIcon = "bi-x-circle-fill";
+            showPythonDownload = true;
+        }
+
+        isDetecting = false;
+        StateHasChanged();
+    }
+
+    private async Task BrowsePython()
+    {
+        // In a real implementation, we would use a file picker
+        // For now, just validate the current path
+        await CheckPythonStatus();
+    }
+
+    private async Task CheckPythonStatus()
+    {
+        if (string.IsNullOrEmpty(pythonPath))
+        {
+            pythonStatus = "No Python path configured.";
+            pythonStatusClass = "status-warning";
+            pythonStatusIcon = "bi-exclamation-triangle";
+            showPythonDownload = true;
+            return;
+        }
+
+        var result = await Task.Run(() => PythonEnv.ValidatePythonAsync(pythonPath));
+        if (result.isValid)
+        {
+            pythonPath = result.fullPath;
+            AppState.SystemPythonPath = result.fullPath;
+            AppState.PythonVersion = result.version;
+            pythonStatus = $"Python {result.version} found.";
+            pythonStatusClass = "status-ready";
+            pythonStatusIcon = "bi-check-circle-fill";
+            showPythonDownload = false;
+        }
+        else
+        {
+            pythonStatus = "Invalid Python path or version < 3.10.";
+            pythonStatusClass = "status-error";
+            pythonStatusIcon = "bi-x-circle-fill";
+            showPythonDownload = true;
+        }
+    }
+
+    #endregion
+
+    #region Venv Methods
+
+    private async Task CheckVenvStatus()
+    {
+        if (string.IsNullOrEmpty(venvPath))
+        {
+            venvPath = AppState.VirtualEnvPath;
+        }
+
+        venvExists = PythonEnv.IsVenvValid(venvPath);
+
+        if (venvExists)
+        {
+            venvStatus = "Ready to use";
+            venvStatusClass = "status-ready";
+            venvStatusIcon = "bi-check-circle-fill";
+            AppState.IsVenvActive = true;
+
+            // Check installed packages
+            await CheckInstalledPackages();
+        }
+        else
+        {
+            venvStatus = "Virtual environment not found";
+            venvStatusClass = "status-warning";
+            venvStatusIcon = "bi-exclamation-triangle";
+            AppState.IsVenvActive = false;
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task CreateVenv()
+    {
+        isVenvProcessing = true;
+        venvLog = string.Empty;
+        AppState.SetStatus("Creating virtual environment...", true);
+        StateHasChanged();
+
+        var result = await Task.Run(() => PythonEnv.CreateVenvAsync(pythonPath, venvPath, log =>
+        {
+            venvLog += log + "\n";
+            InvokeAsync(StateHasChanged);
+        }));
+
+        if (result.success)
+        {
+            AppState.VirtualEnvPath = venvPath;
+            venvLog += "\n" + result.message;
+        }
+        else
+        {
+            venvLog += "\nError: " + result.message;
+        }
+
+        isVenvProcessing = false;
+        AppState.SetStatus("Ready");
+        await CheckVenvStatus();
+    }
+
+    private async Task RebuildVenv()
+    {
+        await CreateVenv();
+    }
+
+    private async Task DeleteVenv()
+    {
+        isVenvProcessing = true;
+        StateHasChanged();
+
+        var result = await Task.Run(() => PythonEnv.DeleteVenv(venvPath));
+        venvLog = result.message;
+
+        isVenvProcessing = false;
+        await CheckVenvStatus();
+    }
+
+    private void BrowseVenv()
+    {
+        // File picker implementation
+        StateHasChanged();
+    }
+
+    #endregion
+
+    #region Package Installation
+
+    private async Task CheckInstalledPackages()
+    {
+        var markitdown = await PythonEnv.CheckMarkItDownAsync(venvPath);
+        markitdownInstalled = markitdown.installed;
+        markitdownVersion = markitdown.version;
+        AppState.MarkItDownVersion = markitdown.version;
+
+        var docling = await PythonEnv.CheckDoclingAsync(venvPath);
+        doclingInstalled = docling.installed;
+        doclingVersion = docling.version;
+        AppState.DoclingVersion = docling.version;
+    }
+
+    private async Task InstallMarkItDown()
+    {
+        isInstalling = true;
+        installingPackage = "markitdown";
+        installLog = string.Empty;
+        AppState.SetStatus("Installing MarkItDown...", true);
+        StateHasChanged();
+
+        var result = await Task.Run(() => PythonEnv.InstallMarkItDownAsync(venvPath, log =>
+        {
+            installLog += log + "\n";
+            InvokeAsync(StateHasChanged);
+        }));
+
+        installLog += "\n" + result.message;
+        isInstalling = false;
+        installingPackage = string.Empty;
+        AppState.SetStatus("Ready");
+        await CheckInstalledPackages();
+        StateHasChanged();
+    }
+
+    private async Task InstallDocling()
+    {
+        isInstalling = true;
+        installingPackage = "docling";
+        installLog = string.Empty;
+        AppState.SetStatus("Installing Docling...", true);
+        StateHasChanged();
+
+        var result = await Task.Run(() => PythonEnv.InstallDoclingAsync(venvPath, log =>
+        {
+            installLog += log + "\n";
+            InvokeAsync(StateHasChanged);
+        }));
+
+        installLog += "\n" + result.message;
+        isInstalling = false;
+        installingPackage = string.Empty;
+        AppState.SetStatus("Ready");
+        await CheckInstalledPackages();
+        StateHasChanged();
+    }
+
+    private async Task InstallCuda(bool useNightly)
+    {
+        isInstalling = true;
+        installingPackage = useNightly ? "cuda-nightly" : "cuda";
+        installLog = string.Empty;
+        AppState.SetStatus("Installing CUDA support...", true);
+        StateHasChanged();
+
+        var result = await Task.Run(() => PythonEnv.InstallCudaSupportAsync(venvPath, useNightly, log =>
+        {
+            installLog += log + "\n";
+            InvokeAsync(StateHasChanged);
+        }));
+
+        installLog += "\n" + result.message;
+        isInstalling = false;
+        installingPackage = string.Empty;
+        AppState.SetStatus("Ready");
+        StateHasChanged();
+    }
+
+    #endregion
+
+    #region App Settings
+
+    private bool AutoSaveEnabled
+    {
+        get => autoSaveEnabled;
+        set
+        {
+            autoSaveEnabled = value;
+            AppState.AutoSaveEnabled = value;
+        }
+    }
+
+    private string Language
+    {
+        get => language;
+        set
+        {
+            language = value;
+            AppState.Language = value;
+        }
+    }
+
+    #endregion
+
+    public void Dispose()
+    {
+        if (_stateHandler != null)
+        {
+            AppState.OnChange -= _stateHandler;
+        }
+    }
+}

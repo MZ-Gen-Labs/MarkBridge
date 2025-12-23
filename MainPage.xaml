@@ -1,0 +1,22 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:local="clr-namespace:MarkBridge"
+             x:Class="MarkBridge.MainPage">
+
+    <!-- Grid wrapper for DropGestureRecognizer -->
+    <Grid x:Name="dropGrid">
+        <Grid.GestureRecognizers>
+            <DropGestureRecognizer AllowDrop="True"
+                                   DragOver="OnDragOver"
+                                   Drop="OnDrop" />
+        </Grid.GestureRecognizers>
+        
+        <BlazorWebView x:Name="blazorWebView" HostPage="wwwroot/index.html">
+            <BlazorWebView.RootComponents>
+                <RootComponent Selector="#app" ComponentType="{x:Type local:Components.Routes}" />
+            </BlazorWebView.RootComponents>
+        </BlazorWebView>
+    </Grid>
+
+</ContentPage>

@@ -1,0 +1,126 @@
+﻿@inherits LayoutComponentBase
+@inject Services.AppStateService AppState
+@implements IDisposable
+
+<div class="d-flex flex-column vh-100">
+    <!-- Tab Navigation -->
+    <nav class="navbar navbar-expand bg-body-tertiary border-bottom px-3">
+        <span class="navbar-brand mb-0 h1">
+            <i class="bi bi-file-earmark-text me-2"></i>MarkBridge
+        </span>
+        <ul class="nav nav-pills ms-auto">
+            <li class="nav-item">
+                <a class="nav-link @(currentTab == "convert" ? "active" : "")" 
+                   href="javascript:void(0)" @onclick='() => SwitchTab("convert")'>
+                    <i class="bi bi-arrow-repeat me-1"></i>Convert
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link @(currentTab == "files" ? "active" : "")" 
+                   href="javascript:void(0)" @onclick='() => SwitchTab("files")'>
+                    <i class="bi bi-folder2-open me-1"></i>Files & Editor
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link @(currentTab == "settings" ? "active" : "")" 
+                   href="javascript:void(0)" @onclick='() => SwitchTab("settings")'>
+                    <i class="bi bi-gear me-1"></i>Settings
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link @(currentTab == "test" ? "active" : "") text-info" 
+                   href="javascript:void(0)" @onclick='() => SwitchTab("test")'>
+                    <i class="bi bi-bug me-1"></i>D&D Test
+                </a>
+            </li>
+        </ul>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="flex-grow-1 overflow-auto bg-body">
+        @switch (currentTab)
+        {
+            case "convert":
+                <MarkBridge.Components.Pages.Convert />
+                break;
+            case "files":
+                <MarkBridge.Components.Pages.FilesEditor />
+                break;
+            case "test":
+                <MarkBridge.Components.Pages.DragDropTest />
+                break;
+            case "settings":
+            default:
+                <MarkBridge.Components.Pages.Settings />
+                break;
+        }
+    </main>
+
+    <!-- Status Bar -->
+    <footer class="status-bar d-flex align-items-center justify-content-between px-3 py-1 bg-body-secondary border-top">
+        <div class="d-flex align-items-center">
+            @if (AppState.IsProcessing)
+            {
+                <div class="spinner-border spinner-border-sm text-primary me-2" role="status">
+                    <span class="visually-hidden">Processing...</span>
+                </div>
+            }
+            else
+            {
+                <i class="bi bi-check-circle-fill text-success me-2"></i>
+            }
+            <span class="small">@AppState.StatusMessage</span>
+        </div>
+        <div class="d-flex align-items-center">
+            @if (AppState.IsVenvActive)
+            {
+                <span class="badge bg-success me-2">
+                    <i class="bi bi-check-circle me-1"></i>venv Active
+                </span>
+            }
+            else
+            {
+                <span class="badge bg-warning text-dark me-2">
+                    <i class="bi bi-exclamation-triangle me-1"></i>venv Not Configured
+                </span>
+            }
+            @if (!string.IsNullOrEmpty(AppState.PythonVersion))
+            {
+                <span class="small text-muted">Python @AppState.PythonVersion</span>
+            }
+        </div>
+    </footer>
+</div>
+
+@code {
+    private string currentTab = "settings";
+    private Action? _stateHandler;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _stateHandler = async () => await InvokeAsync(StateHasChanged);
+        AppState.OnChange += _stateHandler;
+        
+        await AppState.InitializeAsync();
+        
+        // Set initial tab based on setup status
+        if (AppState.IsVenvActive)
+        {
+            currentTab = "convert";
+        }
+    }
+
+    private void SwitchTab(string tab)
+    {
+        currentTab = tab;
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        if (_stateHandler != null)
+        {
+            AppState.OnChange -= _stateHandler;
+        }
+    }
+}

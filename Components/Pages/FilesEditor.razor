@@ -1,0 +1,440 @@
+@inject Services.AppStateService AppState
+@inject IJSRuntime JS
+@implements IDisposable
+
+<div class="d-flex h-100">
+    <!-- Left Pane: File Explorer -->
+    <div class="border-end d-flex flex-column" style="width: 300px; min-width: 250px;">
+        <!-- Toolbar -->
+        <div class="p-2 border-bottom bg-body-tertiary d-flex gap-1">
+            <button class="btn btn-sm btn-outline-secondary" @onclick="RefreshFiles" title="Refresh">
+                <i class="bi bi-arrow-clockwise"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-secondary" @onclick="CreateFolder" title="New Folder">
+                <i class="bi bi-folder-plus"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-secondary" @onclick="DeleteSelected" 
+                    disabled="@(selectedFile == null)" title="Delete">
+                <i class="bi bi-trash"></i>
+            </button>
+            <div class="input-group input-group-sm flex-grow-1">
+                <input type="text" class="form-control" placeholder="Search..." @bind="searchQuery" 
+                       @bind:event="oninput" />
+                <button class="btn btn-outline-secondary" type="button">
+                    <i class="bi bi-search"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- File Tree -->
+        <div class="flex-grow-1 overflow-auto p-2">
+            @if (isLoading)
+            {
+                <div class="text-center py-4">
+                    <div class="spinner-border spinner-border-sm"></div>
+                    <span class="ms-2">Loading...</span>
+                </div>
+            }
+            else if (fileItems.Count == 0)
+            {
+                <div class="text-center text-muted py-4">
+                    <i class="bi bi-folder-x display-4"></i>
+                    <p class="mt-2">No files found</p>
+                </div>
+            }
+            else
+            {
+                <div class="file-tree">
+                    @foreach (var item in FilteredItems)
+                    {
+                        <div class="file-tree-item @(selectedFile?.Path == item.Path ? "selected" : "")"
+                             @onclick="() => SelectFile(item)"
+                             @ondblclick="() => OpenFile(item)">
+                            <i class="bi @(item.IsDirectory ? "bi-folder-fill text-warning" : GetFileIcon(item.Extension)) me-2"></i>
+                            @item.Name
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+
+        <!-- Path bar -->
+        <div class="p-2 border-top bg-body-tertiary small text-truncate" title="@currentPath">
+            <i class="bi bi-folder me-1"></i>@currentPath
+        </div>
+    </div>
+
+    <!-- Right Pane: Markdown Editor -->
+    <div class="flex-grow-1 d-flex flex-column">
+        @if (selectedFile == null || selectedFile.IsDirectory)
+        {
+            <div class="flex-grow-1 d-flex align-items-center justify-content-center text-muted">
+                <div class="text-center">
+                    <i class="bi bi-file-earmark-text display-4"></i>
+                    <p class="mt-2">Select a Markdown file to edit</p>
+                </div>
+            </div>
+        }
+        else
+        {
+            <!-- Editor Toolbar -->
+            <div class="editor-toolbar d-flex align-items-center gap-2">
+                <div class="btn-group btn-group-sm">
+                    <button class="btn @(editorMode == "edit" ? "btn-primary" : "btn-outline-secondary")" 
+                            @onclick="SetEditMode">
+                        <i class="bi bi-pencil me-1"></i>Edit
+                    </button>
+                    <button class="btn @(editorMode == "preview" ? "btn-primary" : "btn-outline-secondary")" 
+                            @onclick="SetPreviewMode">
+                        <i class="bi bi-eye me-1"></i>Preview
+                    </button>
+                </div>
+
+                @if (editorMode == "edit")
+                {
+                    <div class="vr"></div>
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-secondary" @onclick="InsertBold" title="Bold">
+                            <i class="bi bi-type-bold"></i>
+                        </button>
+                        <button class="btn btn-outline-secondary" @onclick="InsertItalic" title="Italic">
+                            <i class="bi bi-type-italic"></i>
+                        </button>
+                        <button class="btn btn-outline-secondary" @onclick="InsertHeading" title="Heading">
+                            <i class="bi bi-type-h1"></i>
+                        </button>
+                        <button class="btn btn-outline-secondary" @onclick="InsertList" title="List">
+                            <i class="bi bi-list-ul"></i>
+                        </button>
+                        <button class="btn btn-outline-secondary" @onclick="InsertLink" title="Link">
+                            <i class="bi bi-link-45deg"></i>
+                        </button>
+                        <button class="btn btn-outline-secondary" @onclick="InsertCode" title="Code">
+                            <i class="bi bi-code"></i>
+                        </button>
+                    </div>
+                }
+
+                <div class="ms-auto d-flex align-items-center gap-2">
+                    @if (hasUnsavedChanges)
+                    {
+                        <span class="badge bg-warning text-dark">
+                            <i class="bi bi-circle-fill me-1" style="font-size: 0.5rem;"></i>Unsaved
+                        </span>
+                    }
+                    <button class="btn btn-sm btn-primary" @onclick="SaveFile" disabled="@(!hasUnsavedChanges)">
+                        <i class="bi bi-save me-1"></i>Save
+                    </button>
+                </div>
+            </div>
+
+            <!-- Editor Content -->
+            <div class="editor-content flex-grow-1">
+                @if (editorMode == "edit")
+                {
+                    <textarea class="form-control h-100 border-0 rounded-0" 
+                              style="font-family: 'Cascadia Code', 'Consolas', monospace; resize: none;"
+                              @bind="editorContent"
+                              @bind:event="oninput"
+                              @onkeydown="HandleKeyDown"></textarea>
+                }
+                else
+                {
+                    <div class="markdown-preview">
+                        @((MarkupString)renderedMarkdown)
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private List<FileItem> fileItems = new();
+    private FileItem? selectedFile;
+    private string currentPath = string.Empty;
+    private string searchQuery = string.Empty;
+    private bool isLoading = false;
+
+    // Editor
+    private string editorContent = string.Empty;
+    private string originalContent = string.Empty;
+    private string editorMode = "edit";
+    private string renderedMarkdown = string.Empty;
+    private bool hasUnsavedChanges => editorContent != originalContent;
+
+    private System.Timers.Timer? autoSaveTimer;
+    private Action? _stateHandler;
+
+    private IEnumerable<FileItem> FilteredItems => string.IsNullOrEmpty(searchQuery)
+        ? fileItems
+        : fileItems.Where(f => f.Name.Contains(searchQuery, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync()
+    {
+        _stateHandler = async () => await InvokeAsync(StateHasChanged);
+        AppState.OnChange += _stateHandler;
+
+        currentPath = AppState.DefaultOutputPath;
+        await LoadFiles();
+
+        // Setup auto-save timer
+        if (AppState.AutoSaveEnabled)
+        {
+            autoSaveTimer = new System.Timers.Timer(3000);
+            autoSaveTimer.Elapsed += async (s, e) => await AutoSave();
+            autoSaveTimer.AutoReset = true;
+        }
+    }
+
+    #region File Operations
+
+    private async Task LoadFiles()
+    {
+        isLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            await Task.Run(() =>
+            {
+                fileItems.Clear();
+
+                if (!Directory.Exists(currentPath))
+                {
+                    Directory.CreateDirectory(currentPath);
+                }
+
+                // Get directories
+                foreach (var dir in Directory.GetDirectories(currentPath))
+                {
+                    var info = new DirectoryInfo(dir);
+                    fileItems.Add(new FileItem
+                    {
+                        Name = info.Name,
+                        Path = info.FullName,
+                        IsDirectory = true
+                    });
+                }
+
+                // Get files
+                foreach (var file in Directory.GetFiles(currentPath, "*.md"))
+                {
+                    var info = new FileInfo(file);
+                    fileItems.Add(new FileItem
+                    {
+                        Name = info.Name,
+                        Path = info.FullName,
+                        Extension = info.Extension,
+                        IsDirectory = false
+                    });
+                }
+
+                // Sort: directories first, then by name
+                fileItems = fileItems
+                    .OrderByDescending(f => f.IsDirectory)
+                    .ThenBy(f => f.Name)
+                    .ToList();
+            });
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error loading files: {ex.Message}");
+        }
+
+        isLoading = false;
+        StateHasChanged();
+    }
+
+    private async Task RefreshFiles()
+    {
+        await LoadFiles();
+    }
+
+    private async Task SelectFile(FileItem item)
+    {
+        if (hasUnsavedChanges)
+        {
+            await SaveFile();
+        }
+
+        selectedFile = item;
+
+        if (!item.IsDirectory && item.Path.EndsWith(".md", StringComparison.OrdinalIgnoreCase))
+        {
+            await LoadFileContent(item.Path);
+        }
+    }
+
+    private async Task OpenFile(FileItem item)
+    {
+        if (item.IsDirectory)
+        {
+            currentPath = item.Path;
+            await LoadFiles();
+            selectedFile = null;
+        }
+        else
+        {
+            await SelectFile(item);
+        }
+    }
+
+    private async Task LoadFileContent(string path)
+    {
+        try
+        {
+            editorContent = await File.ReadAllTextAsync(path);
+            originalContent = editorContent;
+            RenderMarkdown();
+        }
+        catch (Exception ex)
+        {
+            editorContent = $"Error loading file: {ex.Message}";
+            originalContent = editorContent;
+        }
+    }
+
+    private async Task SaveFile()
+    {
+        if (selectedFile == null || string.IsNullOrEmpty(selectedFile.Path)) return;
+
+        try
+        {
+            await File.WriteAllTextAsync(selectedFile.Path, editorContent);
+            originalContent = editorContent;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error saving file: {ex.Message}");
+        }
+    }
+
+    private async Task AutoSave()
+    {
+        if (hasUnsavedChanges && AppState.AutoSaveEnabled)
+        {
+            await InvokeAsync(async () =>
+            {
+                await SaveFile();
+                StateHasChanged();
+            });
+        }
+    }
+
+    private async Task CreateFolder()
+    {
+        var folderName = $"New Folder {DateTime.Now:HHmmss}";
+        var path = Path.Combine(currentPath, folderName);
+
+        try
+        {
+            Directory.CreateDirectory(path);
+            await LoadFiles();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error creating folder: {ex.Message}");
+        }
+    }
+
+    private async Task DeleteSelected()
+    {
+        if (selectedFile == null) return;
+
+        try
+        {
+            if (selectedFile.IsDirectory)
+            {
+                Directory.Delete(selectedFile.Path, true);
+            }
+            else
+            {
+                File.Delete(selectedFile.Path);
+            }
+
+            selectedFile = null;
+            editorContent = string.Empty;
+            originalContent = string.Empty;
+            await LoadFiles();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error deleting: {ex.Message}");
+        }
+    }
+
+    #endregion
+
+    #region Editor
+
+    private void SetEditMode() => editorMode = "edit";
+    private void SetPreviewMode() 
+    { 
+        editorMode = "preview"; 
+        RenderMarkdown();
+    }
+
+    private void InsertBold() => InsertMarkdown("**", "**");
+    private void InsertItalic() => InsertMarkdown("*", "*");
+    private void InsertHeading() => InsertMarkdown("# ", "");
+    private void InsertList() => InsertMarkdown("- ", "");
+    private void InsertLink() => InsertMarkdown("[", "](url)");
+    private void InsertCode() => InsertMarkdown("`", "`");
+
+    private void InsertMarkdown(string prefix, string suffix)
+    {
+        editorContent = prefix + editorContent + suffix;
+        StateHasChanged();
+    }
+
+    private void HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.CtrlKey && e.Key == "s")
+        {
+            _ = SaveFile();
+        }
+    }
+
+    private void RenderMarkdown()
+    {
+        try
+        {
+            var pipeline = new Markdig.MarkdownPipelineBuilder().Build();
+            renderedMarkdown = Markdig.Markdown.ToHtml(editorContent, pipeline);
+        }
+        catch
+        {
+            renderedMarkdown = "<p class='text-danger'>Error rendering markdown</p>";
+        }
+    }
+
+    private string GetFileIcon(string extension) => extension?.ToLower() switch
+    {
+        ".md" => "bi-file-earmark-text text-primary",
+        ".txt" => "bi-file-earmark-text",
+        ".pdf" => "bi-file-earmark-pdf text-danger",
+        ".jpg" or ".jpeg" or ".png" or ".gif" => "bi-file-earmark-image",
+        _ => "bi-file-earmark"
+    };
+
+    #endregion
+
+    public void Dispose()
+    {
+        if (_stateHandler != null)
+        {
+            AppState.OnChange -= _stateHandler;
+        }
+        autoSaveTimer?.Dispose();
+    }
+
+    public class FileItem
+    {
+        public string Name { get; set; } = string.Empty;
+        public string Path { get; set; } = string.Empty;
+        public string Extension { get; set; } = string.Empty;
+        public bool IsDirectory { get; set; }
+    }
+}
