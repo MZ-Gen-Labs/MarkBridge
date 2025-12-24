@@ -35,7 +35,7 @@ jobs:
     
     - name: Publish (Framework-dependent)
       run: |
-        dotnet publish -c Release -r win10-x64 --no-self-contained -o ./publish
+        dotnet publish -c Release -r win-x64 --no-self-contained -o ./publish
     
     - name: Create ZIP archive
       shell: pwsh
