@@ -24,7 +24,7 @@ jobs:
       run: dotnet workload install maui-windows
     
     - name: Restore dependencies
-      run: dotnet restore -r win-x64 -v detailed
+      run: dotnet restore -r win-x64
     
     - name: Get version from tag
       id: version
@@ -33,13 +33,14 @@ jobs:
         $version = "${{ github.ref_name }}" -replace '^v', ''
         echo "VERSION=$version" >> $env:GITHUB_OUTPUT
     
-    - name: Publish (Framework-dependent)
-      run: dotnet publish -c Release -r win-x64 --no-self-contained -o ./publish
+    - name: Publish (Self-contained)
+      run: |
+        dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -p:WindowsAppSDKSelfContained=true -o ./publish
     
     - name: Create ZIP archive
       shell: pwsh
       run: |
-        Compress-Archive -Path ./publish/* -DestinationPath ./MarkBridge-${{ steps.version.outputs.VERSION }}-win-x64.zip
+        Compress-Archive -Path ./publish/* -DestinationPath ./MarkBridge-${{ steps.version.outputs.VERSION }}-win-x64-selfcontained.zip
     
     - name: Create Release
       uses: softprops/action-gh-release@v1
@@ -49,6 +50,6 @@ jobs:
         prerelease: false
         generate_release_notes: true
         files: |
-          MarkBridge-${{ steps.version.outputs.VERSION }}-win-x64.zip
+          MarkBridge-${{ steps.version.outputs.VERSION }}-win-x64-selfcontained.zip
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
