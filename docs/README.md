@@ -26,6 +26,7 @@ MarkBridgeは、Microsoft「MarkItDown」ライブラリおよびDoclingを使�
 | [ARCHITECTURE.md](ARCHITECTURE.md) | 技術アーキテクチャ |
 | [PYTHON_ENVIRONMENT.md](PYTHON_ENVIRONMENT.md) | Python環境管理 |
 | [MAUI_BLAZOR_GUIDE.md](MAUI_BLAZOR_GUIDE.md) | MAUI Blazor開発ガイド（一般） |
+| [GITHUB_BUILD.md](GITHUB_BUILD.md) | GitHub公開・ビルドガイド |
 
 ## クイックスタート
 
