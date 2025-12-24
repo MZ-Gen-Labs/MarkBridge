@@ -61,6 +61,7 @@ public class ConversionService
             }
 
             string result;
+            string? doclingOutputPath = null;
             switch (engine)
             {
                 case ConversionEngine.MarkItDown:
@@ -68,8 +69,10 @@ public class ConversionService
                     break;
                 case ConversionEngine.Docling:
                 case ConversionEngine.DoclingGpu:
-                    result = await RunDoclingAsync(pythonPath, inputPath, fullOutputPath, options, 
+                    var doclingResult = await RunDoclingAsync(pythonPath, inputPath, fullOutputPath, options, 
                         engine == ConversionEngine.DoclingGpu, cancellationToken, onProgress);
+                    result = doclingResult.output;
+                    doclingOutputPath = doclingResult.outputFilePath;
                     break;
                 default:
                     return new ConversionResult
@@ -81,12 +84,23 @@ public class ConversionService
 
             var elapsed = DateTime.Now - startTime;
 
-            if (File.Exists(fullOutputPath))
+            // For Docling, use the returned output path
+            var actualOutputPath = fullOutputPath;
+            if (engine == ConversionEngine.Docling || engine == ConversionEngine.DoclingGpu)
+            {
+                // Docling handles file moving internally
+                if (!string.IsNullOrEmpty(doclingOutputPath))
+                {
+                    actualOutputPath = doclingOutputPath;
+                }
+            }
+
+            if (File.Exists(actualOutputPath))
             {
                 return new ConversionResult
                 {
                     Success = true,
-                    OutputPath = fullOutputPath,
+                    OutputPath = actualOutputPath,
                     ElapsedTime = elapsed
                 };
             }
@@ -146,37 +160,165 @@ public class ConversionService
         return await RunPythonProcessAsync(pythonPath, args, cancellationToken, onProgress);
     }
 
-    private async Task<string> RunDoclingAsync(
+    private async Task<(string output, string? outputFilePath)> RunDoclingAsync(
         string pythonPath,
         string inputPath,
-        string outputPath,
+        string finalOutputPath,
         ConversionOptions options,
         bool useGpu,
         CancellationToken cancellationToken,
         Action<string>? onProgress)
     {
-        // Build docling command
-        var sb = new StringBuilder();
-        sb.Append($"-m docling \"{inputPath}\" --output \"{outputPath}\"");
-
-        if (options.EnableOcr)
+        // Get docling executable path from venv
+        var venvDir = Path.GetDirectoryName(Path.GetDirectoryName(pythonPath));
+        var doclingPath = Path.Combine(venvDir!, "Scripts", "docling.exe");
+        
+        if (!File.Exists(doclingPath))
         {
-            sb.Append(" --ocr");
+            return ("Docling CLI not found. Please install Docling first.", null);
         }
 
-        if (options.IncludeImages)
+        // Create unique temp output directory to avoid conflicts in parallel processing
+        var tempOutputDir = Path.Combine(Path.GetTempPath(), $"docling_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempOutputDir);
+
+        try
         {
-            sb.Append(" --export-images");
+            // Build docling command arguments
+            var sb = new StringBuilder();
+            sb.Append($"\"{inputPath}\" --to md --output \"{tempOutputDir}\"");
+
+            if (options.EnableOcr)
+            {
+                sb.Append(" --ocr-engine tesseract");
+            }
+
+            if (options.IncludeImages)
+            {
+                sb.Append(" --image-export-mode embedded");
+            }
+
+            // Explicitly set device to prevent Docling from auto-detecting GPU
+            if (useGpu)
+            {
+                sb.Append(" --device cuda");
+            }
+            else
+            {
+                sb.Append(" --device cpu");
+            }
+
+            onProgress?.Invoke($"Running Docling{(useGpu ? " (GPU)" : "")}: {Path.GetFileName(inputPath)}");
+
+            var result = await RunProcessAsync(doclingPath, sb.ToString(), cancellationToken, onProgress);
+
+            // Find the output file in temp directory
+            var expectedTempOutput = Path.Combine(tempOutputDir, 
+                Path.GetFileNameWithoutExtension(inputPath) + ".md");
+            
+            if (File.Exists(expectedTempOutput))
+            {
+                // Move to final destination
+                var finalDir = Path.GetDirectoryName(finalOutputPath);
+                if (!string.IsNullOrEmpty(finalDir))
+                {
+                    Directory.CreateDirectory(finalDir);
+                }
+                
+                // Delete existing file if present
+                if (File.Exists(finalOutputPath))
+                {
+                    File.Delete(finalOutputPath);
+                }
+                
+                File.Move(expectedTempOutput, finalOutputPath);
+                return (result, finalOutputPath);
+            }
+            
+            return (result, null);
+        }
+        finally
+        {
+            // Cleanup temp directory
+            try
+            {
+                if (Directory.Exists(tempOutputDir))
+                {
+                    Directory.Delete(tempOutputDir, true);
+                }
+            }
+            catch { }
+        }
+    }
+
+    private async Task<string> RunProcessAsync(
+        string exePath,
+        string arguments,
+        CancellationToken cancellationToken,
+        Action<string>? onProgress)
+    {
+        var psi = new ProcessStartInfo
+        {
+            FileName = exePath,
+            Arguments = arguments,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            StandardOutputEncoding = Encoding.UTF8,
+            StandardErrorEncoding = Encoding.UTF8
+        };
+
+        psi.EnvironmentVariables["PYTHONIOENCODING"] = "utf-8";
+
+        using var process = new Process { StartInfo = psi };
+        var output = new StringBuilder();
+        var error = new StringBuilder();
+
+        process.OutputDataReceived += (s, e) =>
+        {
+            if (e.Data != null)
+            {
+                output.AppendLine(e.Data);
+                onProgress?.Invoke(e.Data);
+            }
+        };
+
+        process.ErrorDataReceived += (s, e) =>
+        {
+            if (e.Data != null)
+            {
+                error.AppendLine(e.Data);
+            }
+        };
+
+        process.Start();
+        process.BeginOutputReadLine();
+        process.BeginErrorReadLine();
+
+        using var timeoutCts = new CancellationTokenSource(TimeSpan.FromMinutes(30));
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
+
+        try
+        {
+            await process.WaitForExitAsync(linkedCts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            try
+            {
+                process.Kill(entireProcessTree: true);
+            }
+            catch { }
+            throw;
         }
 
-        if (useGpu)
+        if (error.Length > 0)
         {
-            sb.Append(" --device cuda");
+            return $"Output:\n{output}\n\nErrors:\n{error}";
         }
 
-        onProgress?.Invoke($"Running Docling{(useGpu ? " (GPU)" : "")}: {Path.GetFileName(inputPath)}");
-
-        return await RunPythonProcessAsync(pythonPath, sb.ToString(), cancellationToken, onProgress);
+        return output.ToString();
     }
 
     private async Task<string> RunPythonProcessAsync(
@@ -192,11 +334,14 @@ public class ConversionService
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
-            CreateNoWindow = true
+            CreateNoWindow = true,
+            StandardOutputEncoding = Encoding.UTF8,
+            StandardErrorEncoding = Encoding.UTF8
         };
 
         // Force unbuffered output to prevent deadlock
         psi.EnvironmentVariables["PYTHONUNBUFFERED"] = "1";
+        psi.EnvironmentVariables["PYTHONIOENCODING"] = "utf-8";
 
         using var process = new Process { StartInfo = psi };
         var output = new StringBuilder();

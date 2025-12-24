@@ -1,6 +1,7 @@
 @page "/settings"
 @inject Services.AppStateService AppState
 @inject Services.PythonEnvironmentService PythonEnv
+@inject IJSRuntime JS
 @implements IDisposable
 
 <div class="container-fluid p-4">
@@ -48,6 +49,92 @@
                     <a href="https://www.python.org/downloads/" target="_blank" class="alert-link">
                         Download Python <i class="bi bi-box-arrow-up-right"></i>
                     </a>
+                </div>
+            }
+            
+            <!-- Python Version Manager -->
+            @if (pyInstallerAvailable)
+            {
+                <div class="mt-4">
+                    <h6 class="fw-bold mb-3"><i class="bi bi-list-check me-2"></i>Python Version Manager</h6>
+                    <table class="table table-sm table-hover">
+                        <thead>
+                            <tr>
+                                <th>Version</th>
+                                <th>Status</th>
+                                <th>Active</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var version in pythonVersions)
+                            {
+                                <tr>
+                                    <td><strong>@version.Version</strong></td>
+                                    <td>
+                                        @if (version.IsInstalled)
+                                        {
+                                            <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Installed</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-secondary">Available</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        @if (version.IsInstalled)
+                                        {
+                                            @if (version.IsActive)
+                                            {
+                                                <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Active</span>
+                                            }
+                                            else
+                                            {
+                                                <button class="btn btn-outline-success btn-sm"
+                                                        @onclick="() => ShowSetActiveConfirm(version)"
+                                                        disabled="@isInstallingVersion">
+                                                    <i class="bi bi-check2-circle"></i> Set Active
+                                                </button>
+                                            }
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">-</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        @if (version.IsInstalled)
+                                        {
+                                            <button class="btn btn-outline-danger btn-sm" 
+                                                    @onclick="() => ShowUninstallConfirm(version)"
+                                                    disabled="@isInstallingVersion">
+                                                <i class="bi bi-trash"></i> Uninstall
+                                            </button>
+                                        }
+                                        else
+                                        {
+                                            <button class="btn btn-outline-primary btn-sm" 
+                                                    @onclick="() => ShowInstallConfirm(version)"
+                                                    disabled="@isInstallingVersion">
+                                                @if (isInstallingVersion && installingVersionName == version.Version)
+                                                {
+                                                    <span class="spinner-border spinner-border-sm me-1"></span>
+                                                }
+                                                <i class="bi bi-download"></i> Install
+                                            </button>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                    <button class="btn btn-outline-secondary btn-sm" @onclick="RefreshVersions" disabled="@isRefreshingVersions">
+                        @if (isRefreshingVersions)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                        }
+                        <i class="bi bi-arrow-clockwise"></i> Refresh
+                    </button>
                 </div>
             }
         </div>
@@ -283,6 +370,13 @@
     private string pythonStatusIcon = string.Empty;
     private bool isDetecting = false;
     private bool showPythonDownload = false;
+    
+    // Python Install Manager
+    private bool pyInstallerAvailable = false;
+    private List<MarkBridge.Services.PythonVersionInfo> pythonVersions = new();
+    private bool isInstallingVersion = false;
+    private string installingVersionName = "";
+    private bool isRefreshingVersions = false;
 
     // Venv
     private string venvPath = string.Empty;
@@ -314,7 +408,7 @@
     private string confirmDialogMessage = "";
     private string confirmDialogButtonText = "Confirm";
     private string confirmDialogButtonClass = "btn-primary";
-    private Func<Task>? confirmAction;
+    private Func<Task>? pendingConfirmAction;
 
     private Action? _stateHandler;
 
@@ -335,6 +429,19 @@
         // Check current state
         await CheckPythonStatus();
         await CheckVenvStatus();
+        
+        // Check Python Install Manager availability
+        pyInstallerAvailable = await PythonEnv.IsPyInstallerAvailableAsync();
+        if (pyInstallerAvailable)
+        {
+            await RefreshVersions();
+        }
+        
+        // Auto-detect installed packages if venv is valid
+        if (venvExists)
+        {
+            await CheckInstalledPackages();
+        }
     }
 
     #region Python Methods
@@ -430,6 +537,166 @@
 
     #endregion
 
+    #region Python Install Manager
+
+    private async Task RefreshVersions()
+    {
+        isRefreshingVersions = true;
+        StateHasChanged();
+
+        try
+        {
+            var installedVersions = await PythonEnv.GetInstalledVersionsAsync();
+            var availableVersions = PythonEnv.GetAvailableVersions();
+
+            // Merge installed and available versions
+            pythonVersions.Clear();
+
+            foreach (var av in availableVersions)
+            {
+                var installed = installedVersions.FirstOrDefault(iv => iv.Version.StartsWith(av));
+                if (installed != null)
+                {
+                    pythonVersions.Add(installed);
+                }
+                else
+                {
+                    pythonVersions.Add(new MarkBridge.Services.PythonVersionInfo
+                    {
+                        Version = av,
+                        Tag = av,  // Available versions have same Version and Tag
+                        IsInstalled = false,
+                        IsActive = false
+                    });
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"RefreshVersions error: {ex.Message}");
+        }
+        finally
+        {
+            isRefreshingVersions = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task InstallPythonVersion(string version)
+    {
+        isInstallingVersion = true;
+        installingVersionName = version;
+        StateHasChanged();
+
+        try
+        {
+            var result = await PythonEnv.InstallPythonVersionAsync(version, msg =>
+            {
+                venvLog = msg;
+                InvokeAsync(StateHasChanged);
+            });
+
+            if (result.success)
+            {
+                await RefreshVersions();
+            }
+        }
+        finally
+        {
+            isInstallingVersion = false;
+            installingVersionName = "";
+            StateHasChanged();
+        }
+    }
+
+    private void ShowUninstallConfirm(MarkBridge.Services.PythonVersionInfo version)
+    {
+        confirmDialogTitle = "Uninstall Python";
+        confirmDialogMessage = $"Are you sure you want to uninstall Python {version.Version}?";
+        confirmDialogButtonText = "Uninstall";
+        confirmDialogButtonClass = "btn-danger";
+        pendingConfirmAction = async () =>
+        {
+            isInstallingVersion = true;
+            installingVersionName = version.Version;
+            StateHasChanged();
+
+            var result = await PythonEnv.UninstallPythonVersionAsync(version.Tag, msg =>
+            {
+                venvLog = msg;
+                InvokeAsync(StateHasChanged);
+            });
+
+            await RefreshVersions();
+            isInstallingVersion = false;
+            installingVersionName = "";
+            StateHasChanged();
+        };
+        showConfirmDialog = true;
+        StateHasChanged();
+    }
+
+    private void ShowInstallConfirm(MarkBridge.Services.PythonVersionInfo version)
+    {
+        confirmDialogTitle = "Install Python";
+        confirmDialogMessage = $"Do you want to install Python {version.Version}?";
+        confirmDialogButtonText = "Install";
+        confirmDialogButtonClass = "btn-primary";
+        pendingConfirmAction = async () =>
+        {
+            isInstallingVersion = true;
+            installingVersionName = version.Version;
+            StateHasChanged();
+
+            var result = await PythonEnv.InstallPythonVersionAsync(version.Tag, msg =>
+            {
+                venvLog = msg;
+                InvokeAsync(StateHasChanged);
+            });
+
+            await RefreshVersions();
+            isInstallingVersion = false;
+            installingVersionName = "";
+            StateHasChanged();
+        };
+        showConfirmDialog = true;
+        StateHasChanged();
+    }
+
+    private void ShowSetActiveConfirm(MarkBridge.Services.PythonVersionInfo version)
+    {
+        confirmDialogTitle = "Set Active Python";
+        confirmDialogMessage = $"Do you want to set Python {version.Version} as the active version?";
+        confirmDialogButtonText = "Set Active";
+        confirmDialogButtonClass = "btn-success";
+        pendingConfirmAction = async () =>
+        {
+            isInstallingVersion = true;
+            StateHasChanged();
+
+            var result = await PythonEnv.SetActiveVersionAsync(version.Tag);
+            
+            if (result.success)
+            {
+                foreach (var v in pythonVersions)
+                {
+                    v.IsActive = false;
+                }
+                version.IsActive = true;
+                
+                pythonPath = AppState.SystemPythonPath;
+                await CheckPythonStatus();
+            }
+
+            isInstallingVersion = false;
+            StateHasChanged();
+        };
+        showConfirmDialog = true;
+        StateHasChanged();
+    }
+
+    #endregion
+
     #region Venv Methods
 
     private async Task CheckVenvStatus()
@@ -495,7 +762,7 @@
         await CreateVenv();
     }
 
-    private async Task DeleteVenv()
+    private Task DeleteVenv()
     {
         ShowConfirmDialog(
             "Delete Virtual Environment",
@@ -513,6 +780,7 @@
                 isVenvProcessing = false;
                 await CheckVenvStatus();
             });
+        return Task.CompletedTask;
     }
 
     private async Task BrowseVenv()
@@ -542,7 +810,7 @@
         confirmDialogMessage = message;
         confirmDialogButtonText = buttonText;
         confirmDialogButtonClass = buttonClass;
-        confirmAction = action;
+        pendingConfirmAction = action;
         showConfirmDialog = true;
         StateHasChanged();
     }
@@ -550,9 +818,9 @@
     private async Task ConfirmAction()
     {
         showConfirmDialog = false;
-        if (confirmAction != null)
+        if (pendingConfirmAction != null)
         {
-            await confirmAction();
+            await pendingConfirmAction();
         }
         StateHasChanged();
     }
@@ -560,7 +828,7 @@
     private void CancelConfirm()
     {
         showConfirmDialog = false;
-        confirmAction = null;
+        pendingConfirmAction = null;
         StateHasChanged();
     }
 
@@ -677,6 +945,7 @@
         {
             theme = value;
             AppState.Theme = value;
+            _ = JS.InvokeVoidAsync("setTheme", value);
         }
     }
 

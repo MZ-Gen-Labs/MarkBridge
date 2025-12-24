@@ -96,6 +96,8 @@
     private string currentTab = "settings";
     private Action? _stateHandler;
 
+    [Inject] private IJSRuntime JS { get; set; } = default!;
+
     protected override async Task OnInitializedAsync()
     {
         _stateHandler = async () => await InvokeAsync(StateHasChanged);
@@ -107,6 +109,15 @@
         if (AppState.IsVenvActive)
         {
             currentTab = "convert";
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Apply saved theme
+            await JS.InvokeVoidAsync("setTheme", AppState.Theme);
         }
     }
 

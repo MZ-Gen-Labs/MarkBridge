@@ -8,6 +8,9 @@ obj/
 __pycache__/
 *.py[cod]
 .venv/
+Lib/
+Scripts/
+pyvenv.cfg
 
 # IDE
 .vs/

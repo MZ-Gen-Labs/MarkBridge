@@ -58,11 +58,13 @@ MarkBridgeは、Microsoft製「MarkItDown」ライブラリおよびDoclingを�
 | エンジン | 説明 | 出力サフィックス |
 |----------|------|------------------|
 | MarkItDown | 標準、高速、軽量 | `_it.md` |
-| Docling | 高度PDF解析、OCR対応 | `_dl.md` |
-| Docling (GPU) | GPU高速処理 | `_dlc.md` |
+| Docling (CPU) | 高度PDF解析、OCR対応 | `_dl.md` |
+| Docling (GPU) | GPU高速処理（CUDA必須） | `_dlc.md` |
 
 - 1つ以上のエンジン選択必須
 - 複数選択時は各エンジンで並列変換
+
+> **注意:** Docling (GPU)使用には事前にCUDA版PyTorchのインストールが必要。インストール後はアプリの再起動が必要。
 
 #### エンジンオプション（Docling選択時のみ有効）
 
@@ -80,18 +82,35 @@ MarkBridgeは、Microsoft製「MarkItDown」ライブラリおよびDoclingを�
 | カラム | 内容 |
 |--------|------|
 | ☑️ | 選択チェックボックス |
-| Name | ファイル名 |
+| Name | ファイル名 + 出力サフィックス |
+| Engine | 変換エンジンバッジ |
 | File Type | ファイル種別バッジ |
 | Path | ファイルパス |
-| Status | Queued / Converting / Completed / Failed |
-| Progress | 進捗バー |
+| Status | Queued / Converting / Completed (Xs) / Failed |
 | × | 削除ボタン |
+
+> **実装:** 複数エンジン選択時、ファイル追加時にエンジンごとのキューアイテムが作成される（例: 1ファイル × 3エンジン = 3アイテム）。Completed時は経過時間を表示。
 
 #### アクションボタン
 
 - Start Selected Conversions
 - Pause / Cancel
 - Remove Selected / Clear All
+
+#### Conversion Errors
+
+変換失敗時にキューの下にエラーメッセージを表示:
+- ダークテーマ背景でコピー可能
+- ファイル名とエラー内容を表示
+- デバッグやトラブルシューティングに役立つ詳細情報を含む
+
+#### 並列処理仕様
+
+- SemaphoreSlimで同時変換数を制御
+- 各キューアイテムはTask.Runで並列実行
+- Doclingは一時ディレクトリで出力後、最終ファイル名にリネーム
+
+> **パフォーマンス注意:** Docling CPUとGPUの同時実行はCPUリソース競合により性能低下が発生する場合がある。最高性能を得るにはGPU単独実行を推奨。
 
 ---
 
@@ -145,13 +164,14 @@ MarkBridgeは、Microsoft製「MarkItDown」ライブラリおよびDoclingを�
 
 | ライブラリ | 説明 |
 |------------|------|
-| MarkItDown | 標準変換エンジン |
+| MarkItDown | 標準変換エンジン（`markitdown[all]`で全形式対応） |
 | Docling | 高度PDF/OCR変換 |
-| PyTorch (CUDA) | GPU変換用（通常版） |
-| PyTorch Nightly | GPU変換用（通常版で動作しない場合） |
+| PyTorch (CUDA) | GPU変換用（CUDA 12.4、通常のGPU向け） |
+| PyTorch Nightly | GPU変換用（CUDA 12.8 Nightly、RTX 50シリーズ向け） |
 
 - ステータス: ✅ vX.X.X / ⬜ Not installed / 🔄 Update available
 - PyTorch (CUDA) と PyTorch Nightly は排他的
+- CUDAインストール後はアプリ再起動が必要
 
 #### 4. Application Settings
 

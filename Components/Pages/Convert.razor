@@ -1,4 +1,5 @@
 @inject Services.AppStateService AppState
+@inject Services.ConversionService ConversionSvc
 @inject IJSRuntime JS
 @implements IDisposable
 
@@ -155,6 +156,7 @@
                                            @bind="selectAll" @onclick="ToggleSelectAll" />
                                 </th>
                                 <th>Name</th>
+                                <th style="width: 120px;">Engine</th>
                                 <th style="width: 100px;">File Type</th>
                                 <th>Path</th>
                                 <th style="width: 140px;">Status</th>
@@ -171,18 +173,27 @@
                                     <td>
                                         <i class="bi @GetFileIcon(item.FileType) me-2"></i>
                                         @item.FileName
+                                        <span class="text-muted small">→ @item.OutputSuffix</span>
+                                    </td>
+                                    <td>
+                                        <span class="badge @GetEngineBadgeClass(item.Engine)">@item.EngineName</span>
                                     </td>
                                     <td><span class="badge bg-light text-dark">@item.FileType</span></td>
                                     <td class="text-truncate" style="max-width: 300px;" title="@item.FilePath">
                                         @item.FilePath
                                     </td>
                                     <td>
-                                        <span class="queue-item-status @GetStatusClass(item.Status)">
+                                        <span class="queue-item-status @GetStatusClass(item.Status)" 
+                                              title="@(item.Status == ConversionStatus.Failed ? item.ErrorMessage : "")">
                                             @if (item.Status == ConversionStatus.Converting)
                                             {
                                                 <span class="spinner-border spinner-border-sm me-1"></span>
                                             }
                                             @item.Status
+                                            @if (item.Status == ConversionStatus.Completed && item.ElapsedTime.HasValue)
+                                            {
+                                                <span class="text-muted ms-1 small">(@item.ElapsedTimeText)</span>
+                                            }
                                         </span>
                                     </td>
                                     <td>
@@ -196,6 +207,23 @@
                         </tbody>
                     </table>
                 </div>
+                
+                @* Error Messages Display *@
+                @if (queueItems.Any(x => x.Status == ConversionStatus.Failed && !string.IsNullOrEmpty(x.ErrorMessage)))
+                {
+                    <div class="mt-3">
+                        <h6 class="text-danger"><i class="bi bi-exclamation-triangle me-2"></i>Conversion Errors</h6>
+                        <div class="bg-dark text-light p-3 rounded" style="max-height: 200px; overflow-y: auto; font-family: monospace; font-size: 0.85rem;">
+                            @foreach (var item in queueItems.Where(x => x.Status == ConversionStatus.Failed && !string.IsNullOrEmpty(x.ErrorMessage)))
+                            {
+                                <div class="mb-2">
+                                    <strong>@item.FileName:</strong><br />
+                                    <span class="text-warning">@item.ErrorMessage</span>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
             }
         </div>
     </div>
@@ -283,18 +311,53 @@
         if (!SupportedExtensions.Contains(ext))
             return;
 
-        // Check for duplicates
-        if (queueItems.Any(q => q.FilePath.Equals(filePath, StringComparison.OrdinalIgnoreCase)))
-            return;
-
-        queueItems.Add(new QueueItem
+        // Get currently selected engines
+        var engines = GetSelectedEngines();
+        if (engines.Count == 0)
         {
-            FileName = Path.GetFileName(filePath),
-            FilePath = filePath,
-            FileType = ext.TrimStart('.').ToUpperInvariant(),
-            IsSelected = true,
-            Status = ConversionStatus.Queued
-        });
+            // If no engine selected, add with null engine (will use engine selection at conversion time)
+            if (!queueItems.Any(q => q.FilePath.Equals(filePath, StringComparison.OrdinalIgnoreCase) && q.Engine == null))
+            {
+                queueItems.Add(new QueueItem
+                {
+                    FileName = Path.GetFileName(filePath),
+                    FilePath = filePath,
+                    FileType = ext.TrimStart('.').ToUpperInvariant(),
+                    IsSelected = true,
+                    Status = ConversionStatus.Queued,
+                    Engine = null
+                });
+            }
+        }
+        else
+        {
+            // Create separate queue items for each selected engine
+            foreach (var engine in engines)
+            {
+                // Check for duplicates (same file + same engine)
+                if (queueItems.Any(q => q.FilePath.Equals(filePath, StringComparison.OrdinalIgnoreCase) && q.Engine == engine))
+                    continue;
+
+                queueItems.Add(new QueueItem
+                {
+                    FileName = Path.GetFileName(filePath),
+                    FilePath = filePath,
+                    FileType = ext.TrimStart('.').ToUpperInvariant(),
+                    IsSelected = true,
+                    Status = ConversionStatus.Queued,
+                    Engine = engine
+                });
+            }
+        }
+    }
+
+    private List<MarkBridge.Services.ConversionEngine> GetSelectedEngines()
+    {
+        var engines = new List<MarkBridge.Services.ConversionEngine>();
+        if (useMarkItDown) engines.Add(MarkBridge.Services.ConversionEngine.MarkItDown);
+        if (useDocling) engines.Add(MarkBridge.Services.ConversionEngine.Docling);
+        if (useDoclingGpu) engines.Add(MarkBridge.Services.ConversionEngine.DoclingGpu);
+        return engines;
     }
 
     private async Task OpenFilePicker()
@@ -387,22 +450,85 @@
         cancellationTokenSource = new CancellationTokenSource();
         AppState.SetStatus("Converting files...", true);
 
+        var targetOutputPath = useOriginalFolder 
+            ? null 
+            : (string.IsNullOrEmpty(outputPath) ? AppState.DefaultOutputPath : outputPath);
+
+        var options = new MarkBridge.Services.ConversionOptions
+        {
+            EnableOcr = enableOcr,
+            IncludeImages = includeImages
+        };
+
         try
         {
+            // Process items with their assigned engines (can be parallelized in future)
+            var tasks = new List<Task>();
+            var semaphore = new SemaphoreSlim(AppState.MaxConcurrency);
+            
             foreach (var item in selectedItems)
             {
                 if (cancellationTokenSource.Token.IsCancellationRequested) break;
 
-                item.Status = ConversionStatus.Converting;
-                StateHasChanged();
+                // Get the engine for this item (use assigned engine)
+                var engine = item.Engine;
+                if (engine == null)
+                {
+                    // If no engine assigned, skip or use first selected engine
+                    var selectedEngines = GetSelectedEngines();
+                    if (selectedEngines.Count == 0)
+                    {
+                        item.Status = ConversionStatus.Failed;
+                        item.ErrorMessage = "No engine selected";
+                        continue;
+                    }
+                    engine = selectedEngines[0];
+                }
 
-                // TODO: Replace with actual conversion logic using ConversionService
-                // For now, simulate conversion
-                await Task.Delay(2000, cancellationTokenSource.Token);
+                var task = Task.Run(async () =>
+                {
+                    await semaphore.WaitAsync(cancellationTokenSource.Token);
+                    try
+                    {
+                        item.Status = ConversionStatus.Converting;
+                        await InvokeAsync(StateHasChanged);
 
-                item.Status = ConversionStatus.Completed;
-                StateHasChanged();
+                        var itemOutputPath = useOriginalFolder 
+                            ? Path.GetDirectoryName(item.FilePath) ?? ""
+                            : targetOutputPath ?? "";
+
+                        var result = await ConversionSvc.ConvertFileAsync(
+                            item.FilePath,
+                            itemOutputPath,
+                            engine.Value,
+                            options,
+                            cancellationTokenSource.Token,
+                            msg => System.Diagnostics.Debug.WriteLine(msg));
+
+                        if (result.Success)
+                        {
+                            item.Status = ConversionStatus.Completed;
+                            item.ElapsedTime = result.ElapsedTime;
+                        }
+                        else
+                        {
+                            item.ErrorMessage = result.ErrorMessage;
+                            item.Status = ConversionStatus.Failed;
+                            item.ElapsedTime = result.ElapsedTime;
+                            System.Diagnostics.Debug.WriteLine($"Conversion failed: {result.ErrorMessage}");
+                        }
+                        await InvokeAsync(StateHasChanged);
+                    }
+                    finally
+                    {
+                        semaphore.Release();
+                    }
+                }, cancellationTokenSource.Token);
+                
+                tasks.Add(task);
             }
+            
+            await Task.WhenAll(tasks);
         }
         catch (OperationCanceledException)
         {
@@ -463,6 +589,14 @@
         _ => ""
     };
 
+    private string GetEngineBadgeClass(MarkBridge.Services.ConversionEngine? engine) => engine switch
+    {
+        MarkBridge.Services.ConversionEngine.MarkItDown => "bg-warning text-dark",
+        MarkBridge.Services.ConversionEngine.Docling => "bg-danger",
+        MarkBridge.Services.ConversionEngine.DoclingGpu => "bg-success",
+        _ => "bg-secondary"
+    };
+
     #endregion
 
     public void Dispose()
@@ -486,6 +620,30 @@
         public bool IsSelected { get; set; } = true;
         public ConversionStatus Status { get; set; } = ConversionStatus.Queued;
         public string? ErrorMessage { get; set; }
+        public MarkBridge.Services.ConversionEngine? Engine { get; set; }
+        public TimeSpan? ElapsedTime { get; set; }
+        
+        public string EngineName => Engine switch
+        {
+            MarkBridge.Services.ConversionEngine.MarkItDown => "MarkItDown",
+            MarkBridge.Services.ConversionEngine.Docling => "Docling (CPU)",
+            MarkBridge.Services.ConversionEngine.DoclingGpu => "Docling (GPU)",
+            _ => "Auto"
+        };
+        
+        public string OutputSuffix => Engine switch
+        {
+            MarkBridge.Services.ConversionEngine.MarkItDown => "_it.md",
+            MarkBridge.Services.ConversionEngine.Docling => "_dl.md",
+            MarkBridge.Services.ConversionEngine.DoclingGpu => "_dlc.md",
+            _ => ".md"
+        };
+        
+        public string ElapsedTimeText => ElapsedTime.HasValue 
+            ? ElapsedTime.Value.TotalSeconds < 60 
+                ? $"{ElapsedTime.Value.TotalSeconds:F1}s"
+                : $"{(int)ElapsedTime.Value.TotalMinutes}m {ElapsedTime.Value.Seconds}s"
+            : "";
     }
 
     public enum ConversionStatus

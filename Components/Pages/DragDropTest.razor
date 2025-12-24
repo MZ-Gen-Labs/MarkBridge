@@ -143,7 +143,7 @@
     }
 
     // 方式1: HTML5 Blazor D&D
-    private async Task HandleDrop1(DragEventArgs e)
+    private Task HandleDrop1(DragEventArgs e)
     {
         isDragOver1 = false;
         
@@ -182,6 +182,7 @@
         }
         
         StateHasChanged();
+        return Task.CompletedTask;
     }
 
     // 方式2: JavaScript Interop からの呼び出し

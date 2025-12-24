@@ -254,7 +254,7 @@ public class PythonEnvironmentService
     public async Task<(bool success, string message)> InstallMarkItDownAsync(string venvPath, Action<string>? onProgress = null)
     {
         onProgress?.Invoke("Installing MarkItDown...");
-        var result = await RunPipCommandAsync(GetVenvPythonPath(venvPath), "install markitdown", onProgress);
+        var result = await RunPipCommandAsync(GetVenvPythonPath(venvPath), "install markitdown[all]", onProgress);
         return result.exitCode == 0
             ? (true, "MarkItDown installed successfully.")
             : (false, $"Installation failed: {result.error}");
@@ -284,14 +284,14 @@ public class PythonEnvironmentService
             // RTX 50 series (Blackwell) requires CUDA 12.8 nightly
             onProgress?.Invoke("Installing PyTorch Nightly (CUDA 12.8) for RTX 50 series...");
             var torchResult = await RunPipCommandAsync(pythonPath,
-                "install --pre torch --index-url https://download.pytorch.org/whl/nightly/cu128", onProgress);
+                "install --force-reinstall --pre torch --index-url https://download.pytorch.org/whl/nightly/cu128", onProgress);
 
             if (torchResult.exitCode != 0)
                 return (false, $"Failed to install PyTorch: {torchResult.error}");
 
             onProgress?.Invoke("Installing torchvision...");
             var visionResult = await RunPipCommandAsync(pythonPath,
-                "install --pre torchvision --no-deps --index-url https://download.pytorch.org/whl/nightly/cu128", onProgress);
+                "install --force-reinstall --pre torchvision --no-deps --index-url https://download.pytorch.org/whl/nightly/cu128", onProgress);
 
             return visionResult.exitCode == 0
                 ? (true, "CUDA support (Nightly/cu128) installed successfully.")
@@ -302,7 +302,7 @@ public class PythonEnvironmentService
             // Standard CUDA 12.4
             onProgress?.Invoke("Installing PyTorch with CUDA 12.4...");
             var result = await RunPipCommandAsync(pythonPath,
-                "install torch torchvision --index-url https://download.pytorch.org/whl/cu124", onProgress);
+                "install --force-reinstall torch torchvision --index-url https://download.pytorch.org/whl/cu124", onProgress);
 
             return result.exitCode == 0
                 ? (true, "CUDA support installed successfully.")
@@ -412,4 +412,291 @@ public class PythonEnvironmentService
     }
 
     #endregion
+
+    #region Python Install Manager
+
+    /// <summary>
+    /// Check if Python Install Manager (py.exe) is available
+    /// </summary>
+    public async Task<bool> IsPyInstallerAvailableAsync()
+    {
+        try
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = "py",
+                Arguments = "--version",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using var process = Process.Start(psi);
+            if (process == null) return false;
+
+            await process.WaitForExitAsync();
+            return process.ExitCode == 0;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Get list of installed Python versions using py list
+    /// </summary>
+    public async Task<List<PythonVersionInfo>> GetInstalledVersionsAsync()
+    {
+        var versions = new List<PythonVersionInfo>();
+
+        try
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = "py",
+                Arguments = "list",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using var process = Process.Start(psi);
+            if (process == null) return versions;
+
+            var output = await process.StandardOutput.ReadToEndAsync();
+            await process.WaitForExitAsync();
+
+            if (process.ExitCode != 0) return versions;
+
+            // Parse output: "  3.13.1    C:\Users\xxx\...\python.exe"
+            // Active version starts with "*"
+            var lines = output.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+            foreach (var line in lines.Skip(1)) // Skip header
+            {
+                var trimmed = line.Trim();
+                if (string.IsNullOrEmpty(trimmed)) continue;
+
+                var isActive = trimmed.StartsWith("*");
+                if (isActive) trimmed = trimmed.Substring(1).Trim();
+
+                var parts = trimmed.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length >= 1)
+                {
+                    var displayVersion = parts[0];
+                    // Convert display format "3.14[-64]" to command tag "3.14" or "3.14-64"
+                    var tag = displayVersion.Replace("[", "").Replace("]", "");
+                    
+                    versions.Add(new PythonVersionInfo
+                    {
+                        Version = displayVersion,
+                        Tag = tag,
+                        Path = parts.Length >= 2 ? parts[1] : "",
+                        IsActive = isActive,
+                        IsInstalled = true
+                    });
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"GetInstalledVersionsAsync error: {ex.Message}");
+        }
+
+        return versions;
+    }
+
+    /// <summary>
+    /// Get available Python versions for installation
+    /// </summary>
+    public List<string> GetAvailableVersions()
+    {
+        // Common Python versions available for installation
+        return new List<string> { "3.14", "3.13", "3.12", "3.11", "3.10" };
+    }
+
+    /// <summary>
+    /// Install a Python version using py install
+    /// </summary>
+    public async Task<(bool success, string message)> InstallPythonVersionAsync(
+        string version, 
+        Action<string>? onProgress = null)
+    {
+        try
+        {
+            onProgress?.Invoke($"Installing Python {version}...");
+
+            var psi = new ProcessStartInfo
+            {
+                FileName = "py",
+                Arguments = $"install {version}",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            psi.EnvironmentVariables["PYTHONUNBUFFERED"] = "1";
+
+            using var process = new Process { StartInfo = psi };
+            var output = new StringBuilder();
+
+            process.OutputDataReceived += (s, e) =>
+            {
+                if (e.Data != null)
+                {
+                    output.AppendLine(e.Data);
+                    onProgress?.Invoke(e.Data);
+                }
+            };
+
+            process.ErrorDataReceived += (s, e) =>
+            {
+                if (e.Data != null)
+                {
+                    output.AppendLine(e.Data);
+                    onProgress?.Invoke(e.Data);
+                }
+            };
+
+            process.Start();
+            process.BeginOutputReadLine();
+            process.BeginErrorReadLine();
+            await process.WaitForExitAsync();
+
+            if (process.ExitCode == 0)
+            {
+                return (true, $"Python {version} installed successfully.");
+            }
+            else
+            {
+                return (false, $"Failed to install Python {version}. {output}");
+            }
+        }
+        catch (Exception ex)
+        {
+            return (false, $"Error installing Python {version}: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Uninstall a Python version using py uninstall
+    /// </summary>
+    public async Task<(bool success, string message)> UninstallPythonVersionAsync(
+        string version,
+        Action<string>? onProgress = null)
+    {
+        try
+        {
+            onProgress?.Invoke($"Uninstalling Python {version}...");
+
+            var psi = new ProcessStartInfo
+            {
+                FileName = "py",
+                Arguments = $"uninstall --yes {version}",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using var process = new Process { StartInfo = psi };
+            var output = new StringBuilder();
+
+            process.OutputDataReceived += (s, e) =>
+            {
+                if (e.Data != null)
+                {
+                    output.AppendLine(e.Data);
+                    onProgress?.Invoke(e.Data);
+                }
+            };
+
+            process.ErrorDataReceived += (s, e) =>
+            {
+                if (e.Data != null)
+                {
+                    output.AppendLine(e.Data);
+                    onProgress?.Invoke(e.Data);
+                }
+            };
+
+            process.Start();
+            process.BeginOutputReadLine();
+            process.BeginErrorReadLine();
+            await process.WaitForExitAsync();
+
+            if (process.ExitCode == 0)
+            {
+                return (true, $"Python {version} uninstalled successfully.");
+            }
+            else
+            {
+                return (false, $"Failed to uninstall Python {version}. {output}");
+            }
+        }
+        catch (Exception ex)
+        {
+            return (false, $"Error uninstalling Python {version}: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Set the active Python version and save to settings
+    /// </summary>
+    public async Task<(bool success, string message)> SetActiveVersionAsync(string version)
+    {
+        try
+        {
+            // Get the path for this specific version
+            var psi = new ProcessStartInfo
+            {
+                FileName = "py",
+                Arguments = $"-{version} -c \"import sys; print(sys.executable)\"",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using var process = Process.Start(psi);
+            if (process == null) return (false, "Failed to start py command");
+
+            var output = await process.StandardOutput.ReadToEndAsync();
+            await process.WaitForExitAsync();
+
+            if (process.ExitCode == 0 && !string.IsNullOrEmpty(output))
+            {
+                var pythonPath = output.Trim();
+                _appState.SystemPythonPath = pythonPath;
+                _appState.PythonVersion = version;
+                await _appState.SaveAsync();
+                return (true, $"Python {version} set as active. Path: {pythonPath}");
+            }
+            else
+            {
+                return (false, $"Failed to get Python {version} path");
+            }
+        }
+        catch (Exception ex)
+        {
+            return (false, $"Error setting active version: {ex.Message}");
+        }
+    }
+
+    #endregion
+}
+
+/// <summary>
+/// Python version information
+/// </summary>
+public class PythonVersionInfo
+{
+    public string Version { get; set; } = "";  // Display version (e.g., "3.14[-64]")
+    public string Tag { get; set; } = "";      // Command tag (e.g., "3.14" or "3.14-64")
+    public string Path { get; set; } = "";
+    public bool IsActive { get; set; }
+    public bool IsInstalled { get; set; }
 }
