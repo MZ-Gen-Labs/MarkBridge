@@ -42,6 +42,17 @@ jobs:
       run: |
         Compress-Archive -Path ./publish/* -DestinationPath ./MarkBridge-${{ steps.version.outputs.VERSION }}-win-x64-selfcontained.zip
     
+    - name: Install Inno Setup
+      shell: pwsh
+      run: |
+        choco install innosetup -y --no-progress
+    
+    - name: Build Installer
+      shell: pwsh
+      run: |
+        $env:Path = [System.Environment]::GetEnvironmentVariable('Path','Machine')
+        & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DMyAppVersion="${{ steps.version.outputs.VERSION }}" ".github\installer\MarkBridge.iss"
+    
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
@@ -51,5 +62,6 @@ jobs:
         generate_release_notes: true
         files: |
           MarkBridge-${{ steps.version.outputs.VERSION }}-win-x64-selfcontained.zip
+          installer/MarkBridge-${{ steps.version.outputs.VERSION }}-win-x64-setup.exe
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
