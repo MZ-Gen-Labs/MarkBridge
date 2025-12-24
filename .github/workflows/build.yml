@@ -22,7 +22,7 @@ jobs:
       run: dotnet workload install maui-windows
     
     - name: Restore dependencies
-      run: dotnet restore
+      run: dotnet restore -r win-x64
     
     - name: Build
-      run: dotnet build -c Release --no-restore
+      run: dotnet build -c Release -r win-x64 --no-restore

@@ -24,7 +24,7 @@ jobs:
       run: dotnet workload install maui-windows
     
     - name: Restore dependencies
-      run: dotnet restore
+      run: dotnet restore -r win-x64
     
     - name: Get version from tag
       id: version
@@ -34,8 +34,7 @@ jobs:
         echo "VERSION=$version" >> $env:GITHUB_OUTPUT
     
     - name: Publish (Framework-dependent)
-      run: |
-        dotnet publish -c Release -r win-x64 --no-self-contained -o ./publish
+      run: dotnet publish -c Release -r win-x64 --no-self-contained -o ./publish
     
     - name: Create ZIP archive
       shell: pwsh
