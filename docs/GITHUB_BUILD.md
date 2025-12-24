@@ -158,7 +158,43 @@ dotnet publish -c Release -r win-x64 --self-contained -o ./publish
 
 ---
 
-## 7. 参考リンク
+## 7. Inno Setupインストーラー
+
+### 7.1 概要
+
+Inno Setupを使用して、Windowsインストーラー(.exe)を自動生成します。
+
+**生成されるファイル:**
+- `MarkBridge-X.X.X-win-x64-setup.exe` - インストーラー
+
+### 7.2 スクリプトの場所
+
+```
+.github/installer/MarkBridge.iss
+```
+
+### 7.3 主な機能
+
+- 64ビットWindows対応
+- 日本語/英語対応
+- デスクトップアイコン作成（オプション）
+- スタートメニュー登録
+- アンインストーラー付属
+
+### 7.4 GitHub Actionsでの実行
+
+```yaml
+- name: Install Inno Setup
+  run: choco install innosetup -y --no-progress
+
+- name: Build Installer
+  run: |
+    & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DMyAppVersion="${{ steps.version.outputs.VERSION }}" ".github\installer\MarkBridge.iss"
+```
+
+---
+
+## 8. 参考リンク
 
 - [GitHub Actions公式ドキュメント](https://docs.github.com/ja/actions)
 - [.NET MAUI CI/CDガイド](https://learn.microsoft.com/ja-jp/dotnet/maui/deployment/)
