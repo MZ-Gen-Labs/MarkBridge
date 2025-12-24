@@ -1,0 +1,55 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+    
+    - name: Install MAUI workload
+      run: dotnet workload install maui-windows
+    
+    - name: Restore dependencies
+      run: dotnet restore
+    
+    - name: Get version from tag
+      id: version
+      shell: pwsh
+      run: |
+        $version = "${{ github.ref_name }}" -replace '^v', ''
+        echo "VERSION=$version" >> $env:GITHUB_OUTPUT
+    
+    - name: Publish (Framework-dependent)
+      run: |
+        dotnet publish -c Release -r win10-x64 --no-self-contained -o ./publish
+    
+    - name: Create ZIP archive
+      shell: pwsh
+      run: |
+        Compress-Archive -Path ./publish/* -DestinationPath ./MarkBridge-${{ steps.version.outputs.VERSION }}-win-x64.zip
+    
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        name: MarkBridge v${{ steps.version.outputs.VERSION }}
+        draft: false
+        prerelease: false
+        generate_release_notes: true
+        files: |
+          MarkBridge-${{ steps.version.outputs.VERSION }}-win-x64.zip
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

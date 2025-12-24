@@ -4,18 +4,23 @@ obj/
 *.user
 *.suo
 
-# Python
+# Python venv (if accidentally created in project root)
 __pycache__/
 *.py[cod]
 .venv/
 Lib/
 Scripts/
+Include/
 pyvenv.cfg
 
 # IDE
 .vs/
 .idea/
+*.code-workspace
 
 # OS
 Thumbs.db
 .DS_Store
+
+# Backup files
+*.bak
