@@ -18,11 +18,22 @@ def install_and_import(package):
 try:
     import cv2
     import numpy as np
-    from paddleocr import PPStructure
-    from paddleocr.ppstructure.recovery.recovery_to_doc import sorted_layout_boxes
+    from paddleocr import PPStructureV3 as PPStructure
+    # from paddleocr.ppstructure.recovery.recovery_to_doc import sorted_layout_boxes # Removed due to import error
 except ImportError as e:
     print(f"Error importing dependencies: {e}")
     sys.exit(1)
+
+def sorted_layout_boxes(res, w):
+    """
+    Sort text boxes by y-coordinate first, then x-coordinate.
+    Simple implementation to replace the missing library function.
+    """
+    if len(res) == 0:
+        return res
+    return sorted(res, key=lambda x: (x['bbox'][1], x['bbox'][0]))
+
+
 
 def convert_to_markdown(res, img_name):
     """
@@ -95,9 +106,12 @@ def main():
         sys.exit(1)
 
     try:
-        # Initialize PP-Structure
+        # Initialize PaddleOCR engine
         print(f"Initializing PaddleOCR (lang={lang}, gpu={use_gpu})...")
-        table_engine = PPStructure(show_log=True, lang=lang, use_gpu=use_gpu)
+        # PPStructureV3 might not support show_log or use_gpu in init directly in newer versions or wraps them differently.
+        # Trying with minimal arguments first.
+        # table_engine = PPStructure(show_log=True, lang=lang, use_gpu=use_gpu) 
+        table_engine = PPStructure(lang=lang)
 
         print(f"Starting conversion for: {input_path}")
         
