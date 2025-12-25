@@ -6,9 +6,9 @@
 
 <div class="container-fluid p-4">
     <!-- Drag & Drop Area -->
-    <div class="drop-zone p-5 text-center mb-4 @(isDragOver ? "drag-over" : "")">
-        <i class="bi bi-cloud-upload display-4 text-muted mb-3"></i>
-        <h5 class="text-muted">Drag files or folders anywhere in the window</h5>
+    <div class="drop-zone p-3 text-center mb-4 @(isDragOver ? "drag-over" : "")">
+        <i class="bi bi-cloud-upload display-6 text-muted mb-2"></i>
+        <h6 class="text-muted mb-1">Drag files or folders anywhere in the window</h6>
         <p class="text-muted small mb-2">Supported: PDF, Word, PowerPoint, Excel, HTML, XML, JSON, CSV, EPUB, ZIP</p>
         <button class="btn btn-outline-primary btn-sm" @onclick="OpenFilePicker">
             <i class="bi bi-folder2-open me-1"></i>Or click to select files
