@@ -349,8 +349,8 @@ public class PythonEnvironmentService
     public async Task<(bool success, string message)> InstallPaddleOcrAsync(string venvPath, Action<string>? onProgress = null)
     {
         onProgress?.Invoke("Installing PaddleOCR (this may take a while)...");
-        // Install paddlepaddle (CPU), paddleocr, and necessary dependencies including paddlex[ocr] for structure analysis and pymupdf for PDF
-        var result = await RunPipCommandAsync(GetVenvPythonPath(venvPath), "install paddlepaddle paddleocr opencv-python-headless \"paddlex[ocr]\" pymupdf", onProgress);
+        // Install paddlepaddle-gpu (CUDA 11.8 compatible), paddleocr, and necessary dependencies including paddlex[ocr] for structure analysis and pymupdf for PDF
+        var result = await RunPipCommandAsync(GetVenvPythonPath(venvPath), "install paddlepaddle-gpu paddleocr opencv-python-headless \"paddlex[ocr]\" pymupdf -i https://www.paddlepaddle.org.cn/packages/stable/cu118/", onProgress);
         return result.exitCode == 0
             ? (true, "PaddleOCR installed successfully.")
             : (false, $"Installation failed: {result.error}");

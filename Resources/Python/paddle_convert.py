@@ -49,7 +49,7 @@ def main():
     try:
         # Initialize PaddleOCR engine
         print(f"Initializing PaddleOCR (lang={lang}, gpu={use_gpu})...")
-        table_engine = PPStructure(lang=lang)
+        table_engine = PPStructure(lang=lang, use_gpu=use_gpu)
 
         print(f"Starting conversion for: {input_path}")
         
