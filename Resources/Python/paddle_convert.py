@@ -24,68 +24,9 @@ except ImportError as e:
     print(f"Error importing dependencies: {e}")
     sys.exit(1)
 
-def sorted_layout_boxes(res, w):
-    """
-    Sort text boxes by y-coordinate first, then x-coordinate.
-    Simple implementation to replace the missing library function.
-    """
-    if len(res) == 0:
-        return res
-    return sorted(res, key=lambda x: (x['bbox'][1], x['bbox'][0]))
 
 
 
-def convert_to_markdown(res, img_name):
-    """
-    Convert structure analysis result to Markdown.
-    """
-    if res is None: 
-        return ""
-
-    # Sort regions
-    res = sorted_layout_boxes(res, w=0)
-
-    md_lines = []
-
-    for region in res:
-        region_type = region['type']
-        region_res = region.get('res', [])
-        
-        if region_type == 'table':
-            if region_res and 'html' in region_res:
-                 md_lines.append(region_res['html'])
-                 md_lines.append("")
-        
-        elif region_type == 'figure':
-            md_lines.append(f"![Figure]({img_name}_figure.jpg)") 
-            
-        elif region_type == 'text':
-            text_block = ""
-            for line in region_res:
-                if isinstance(line, dict):
-                    text_block += line.get('text', '') + " "
-                elif isinstance(line, str):
-                    text_block += line + " "
-            md_lines.append(text_block.strip())
-            md_lines.append("")
-        
-        elif region_type == 'title':
-            text_block = ""
-            for line in region_res:
-                 if isinstance(line, dict):
-                    text_block += line.get('text', '') + " "
-            md_lines.append(f"## {text_block.strip()}")
-            md_lines.append("")
-            
-        elif region_type == 'header':
-             text_block = ""
-             for line in region_res:
-                 if isinstance(line, dict):
-                    text_block += line.get('text', '') + " "
-             md_lines.append(f"**{text_block.strip()}**")
-             md_lines.append("")
-
-    return "\n".join(md_lines)
 
 def main():
     parser = argparse.ArgumentParser(description='PaddleOCR PP-Structure Conversion')
@@ -96,8 +37,8 @@ def main():
     
     args = parser.parse_args()
     
-    input_path = args.input_file
-    output_path = args.output_file
+    input_path = os.path.abspath(args.input_file)
+    output_path = os.path.abspath(args.output_file)
     lang = args.lang
     use_gpu = args.use_gpu
 
@@ -108,62 +49,108 @@ def main():
     try:
         # Initialize PaddleOCR engine
         print(f"Initializing PaddleOCR (lang={lang}, gpu={use_gpu})...")
-        # PPStructureV3 might not support show_log or use_gpu in init directly in newer versions or wraps them differently.
-        # Trying with minimal arguments first.
-        # table_engine = PPStructure(show_log=True, lang=lang, use_gpu=use_gpu) 
         table_engine = PPStructure(lang=lang)
 
         print(f"Starting conversion for: {input_path}")
         
-        # Check if input is PDF
-        if input_path.lower().endswith('.pdf'):
-            try:
-                import fitz # PyMuPDF
-                doc = fitz.open(input_path)
-                all_md = []
-                for i, page in enumerate(doc):
-                    pix = page.get_pixmap()
-                    img_data = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.h, pix.w, pix.n)
-                    if pix.n == 4:
-                        img_data = cv2.cvtColor(img_data, cv2.COLOR_RGBA2RGB)
-                    elif pix.n != 3:
-                        img_data = cv2.cvtColor(img_data, cv2.COLOR_GRAY2RGB)
-                    
-                    result = table_engine(img_data)
-                    page_md = convert_to_markdown(result, f"page_{i}")
-                    all_md.append(page_md)
-                    print(f"Processed page {i+1}/{len(doc)}")
-                
-                final_md = "\n\n---\n\n".join(all_md)
-                
-                output_dir = os.path.dirname(output_path)
-                if output_dir and not os.path.exists(output_dir):
-                    os.makedirs(output_dir)
+        # Temp dir for intermediate results
+        import tempfile
+        import shutil
+        import uuid
+        
+        temp_base_dir = os.path.join(os.path.dirname(output_path), "paddle_temp_" + str(uuid.uuid4())[:8])
+        if not os.path.exists(temp_base_dir):
+            os.makedirs(temp_base_dir)
 
-                with open(output_path, 'w', encoding='utf-8') as f:
-                    f.write(final_md)
-                    
-            except ImportError:
-                 print("Error: PyMuPDF (fitz) not found. Please install it: pip install pymupdf")
-                 sys.exit(1)
-        else:
-            # Image handling
-            img = cv2.imread(input_path)
-            if img is None:
-                print("Error: Failed to read image using cv2")
-                sys.exit(1)
+        all_md_content = []
 
-            result = table_engine(img)
-            md_content = convert_to_markdown(result, "img")
+        try:
+            # Check if input is PDF
+            if input_path.lower().endswith('.pdf'):
+                try:
+                    import fitz # PyMuPDF
+                    doc = fitz.open(input_path)
+                    
+                    for i, page in enumerate(doc):
+                        pix = page.get_pixmap()
+                        img_data = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.h, pix.w, pix.n)
+                        if pix.n == 4:
+                             img_data = cv2.cvtColor(img_data, cv2.COLOR_RGBA2RGB)
+                        elif pix.n != 3:
+                             img_data = cv2.cvtColor(img_data, cv2.COLOR_GRAY2RGB)
+                        
+                        # Process page
+                        # predict returns a generator or list
+                        results = table_engine.predict(img_data)
+                        
+                        # results might be a list of one item or a generator
+                        # Iterate to handle both
+                        if not isinstance(results, list):
+                             results = [results] if not hasattr(results, '__iter__') else list(results)
+
+                        for res_idx, res in enumerate(results):
+                             # Each res corresponds to an image (here 1 image)
+                             # Use save_to_markdown
+                             page_temp_dir = os.path.join(temp_base_dir, f"page_{i}_{res_idx}")
+                             if hasattr(res, 'save_to_markdown'):
+                                 res.save_to_markdown(save_path=page_temp_dir)
+                             else:
+                                 # Fallback for older versions or unexpected objects?
+                                 # Current V3 objects should have it.
+                                 print(f"Warning: Result object missing save_to_markdown")
+                                 continue
+                             
+                             # Find the generated MD file
+                             md_files = [f for f in os.listdir(page_temp_dir) if f.endswith('.md')]
+                             if md_files:
+                                 with open(os.path.join(page_temp_dir, md_files[0]), 'r', encoding='utf-8') as f:
+                                     all_md_content.append(f.read())
+                             else:
+                                 # It might output nothing if empty?
+                                 pass
+                        
+                        print(f"Processed page {i+1}/{len(doc)}")
+                        
+                except ImportError:
+                     print("Error: PyMuPDF (fitz) not found. Please install it: pip install pymupdf")
+                     sys.exit(1)
+            else:
+                # Image handling
+                img = cv2.imread(input_path)
+                if img is None:
+                    print("Error: Failed to read image using cv2")
+                    sys.exit(1)
+
+                results = table_engine.predict(img)
+                # results is likely a generator yielding one result
+                for res in results:
+                     if hasattr(res, 'save_to_markdown'):
+                         res.save_to_markdown(save_path=temp_base_dir)
+                         # Find MD
+                         md_files = [f for f in os.listdir(temp_base_dir) if f.endswith('.md')]
+                         if md_files:
+                              with open(os.path.join(temp_base_dir, md_files[0]), 'r', encoding='utf-8') as f:
+                                   all_md_content.append(f.read())
+
+            # Write final output
+            final_md = "\n\n---\n\n".join(all_md_content)
             
             output_dir = os.path.dirname(output_path)
             if output_dir and not os.path.exists(output_dir):
                 os.makedirs(output_dir)
 
             with open(output_path, 'w', encoding='utf-8') as f:
-                f.write(md_content)
+                f.write(final_md)
 
-        print(f"Conversion complete: {output_path}")
+            print(f"Conversion complete: {output_path}")
+
+        finally:
+            # Cleanup temp
+            if os.path.exists(temp_base_dir):
+                try:
+                    shutil.rmtree(temp_base_dir)
+                except:
+                    pass
 
     except Exception:
         traceback.print_exc()
@@ -171,3 +158,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
