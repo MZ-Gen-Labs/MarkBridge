@@ -1,8 +1,11 @@
+
 import os
 import argparse
 import sys
 import json
 import traceback
+
+
 
 def install_and_import(package):
     import importlib
@@ -23,6 +26,36 @@ try:
 except ImportError as e:
     print(f"Error importing dependencies: {e}")
     sys.exit(1)
+
+
+# Add nvidia dll paths for Windows if possible and pre-load them
+if os.name == 'nt':
+    import glob
+    site_packages = os.path.join(sys.prefix, 'Lib', 'site-packages')
+    nvidia_path = os.path.join(site_packages, 'nvidia')
+    
+    dll_paths_to_add = []
+    
+    if os.path.exists(nvidia_path):
+        for dll_dir in glob.glob(os.path.join(nvidia_path, '*', 'bin')):
+            dll_paths_to_add.append(dll_dir)
+    
+    # Add torch lib path (for zlibwapi.dll which might be there)
+    torch_path = os.path.join(site_packages, 'torch', 'lib')
+    if os.path.exists(torch_path):
+         dll_paths_to_add.append(torch_path)
+
+    # Add directories
+    for p in dll_paths_to_add:
+        print(f"DEBUG: Adding DLL directory: {p}")
+        try:
+             os.add_dll_directory(p)
+        except Exception as e:
+             print(f"DEBUG: Failed to add dll dir {p}: {e}")
+        os.environ['PATH'] = p + os.pathsep + os.environ['PATH']
+
+import paddle
+
 
 
 
@@ -49,7 +82,17 @@ def main():
     try:
         # Initialize PaddleOCR engine
         print(f"Initializing PaddleOCR (lang={lang}, gpu={use_gpu})...")
-        table_engine = PPStructure(lang=lang, use_gpu=use_gpu)
+        device = 'gpu' if use_gpu else 'cpu'
+        
+        try:
+             table_engine = PPStructure(lang=lang, device=device)
+        except Exception as e:
+             if device == 'gpu':
+                 print(f"Warning: Failed to initialize PaddleOCR with GPU: {e}")
+                 print("Falling back to CPU...")
+                 table_engine = PPStructure(lang=lang, device='cpu')
+             else:
+                 raise e
 
         print(f"Starting conversion for: {input_path}")
         
