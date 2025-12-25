@@ -89,6 +89,12 @@ public class AppStateService
         set { _settings.IncludeImages = value; NotifyStateChanged(); }
     }
 
+    public ImageExportMode ImageExportMode
+    {
+        get => _settings.ImageExportMode;
+        set { _settings.ImageExportMode = value; NotifyStateChanged(); }
+    }
+
     public bool UseMarkItDown
     {
         get => _settings.UseMarkItDown;
@@ -210,7 +216,8 @@ public class AppSettings
     public int MaxConcurrency { get; set; } = 3;
     public ConversionEngine SelectedEngine { get; set; } = ConversionEngine.MarkItDown;
     public bool EnableOcr { get; set; } = false;
-    public bool IncludeImages { get; set; } = false;
+    public bool IncludeImages { get; set; } = false;  // Legacy, keeping for compatibility
+    public ImageExportMode ImageExportMode { get; set; } = ImageExportMode.None;
     
     // Engine selection (multiple selection support)
     public bool UseMarkItDown { get; set; } = true;
@@ -223,6 +230,19 @@ public enum ConversionEngine
     MarkItDown,
     Docling,
     DoclingGpu
+}
+
+/// <summary>
+/// Image export mode for Docling conversion
+/// </summary>
+public enum ImageExportMode
+{
+    /// <summary>No images - placeholder only</summary>
+    None,
+    /// <summary>Base64 embedded in markdown</summary>
+    Embedded,
+    /// <summary>External files in a subfolder</summary>
+    ExternalFiles
 }
 
 /// <summary>

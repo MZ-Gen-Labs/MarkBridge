@@ -193,16 +193,14 @@ public class ConversionService
                 sb.Append(" --ocr-engine tesseract");
             }
 
-            // Image export mode: embedded (base64) or placeholder (no images)
-            if (options.IncludeImages)
+            // Image export mode: none (placeholder), embedded (base64), or external files (referenced)
+            var imageMode = options.ImageExportMode switch
             {
-                sb.Append(" --image-export-mode embedded");
-            }
-            else
-            {
-                // Explicitly set to placeholder to prevent image embedding
-                sb.Append(" --image-export-mode placeholder");
-            }
+                ImageExportMode.Embedded => "embedded",
+                ImageExportMode.ExternalFiles => "referenced",
+                _ => "placeholder"  // None or default
+            };
+            sb.Append($" --image-export-mode {imageMode}");
 
             // Explicitly set device to prevent Docling from auto-detecting GPU
             if (useGpu)
@@ -430,6 +428,8 @@ public class ConversionResult
 public class ConversionOptions
 {
     public bool EnableOcr { get; set; }
-    public bool IncludeImages { get; set; }
+    public bool IncludeImages { get; set; }  // Legacy
+    public ImageExportMode ImageExportMode { get; set; } = ImageExportMode.None;
     public int MaxRetries { get; set; } = 5;
 }
+

@@ -205,10 +205,16 @@
         }
     }
 
+    private Action<List<string>>? _dropHandler;
+
     protected override async Task OnInitializedAsync()
     {
         _stateHandler = async () => await InvokeAsync(StateHasChanged);
         AppState.OnChange += _stateHandler;
+
+        // Subscribe to file drop events for opening markdown files
+        _dropHandler = HandleFilesDropped;
+        MainPage.OnFilesDropped += _dropHandler;
 
         currentPath = AppState.DefaultOutputPath;
         await LoadFiles();
@@ -219,6 +225,39 @@
             autoSaveTimer = new System.Timers.Timer(3000);
             autoSaveTimer.Elapsed += async (s, e) => await AutoSave();
             autoSaveTimer.AutoReset = true;
+        }
+    }
+
+    private void HandleFilesDropped(List<string> filePaths)
+    {
+        // Open the first markdown file dropped
+        var mdFile = filePaths.FirstOrDefault(f => 
+            f.EndsWith(".md", StringComparison.OrdinalIgnoreCase));
+        
+        if (!string.IsNullOrEmpty(mdFile) && File.Exists(mdFile))
+        {
+            InvokeAsync(async () =>
+            {
+                // Update current path to the file's directory
+                var dir = Path.GetDirectoryName(mdFile);
+                if (!string.IsNullOrEmpty(dir))
+                {
+                    currentPath = dir;
+                    await LoadFiles();
+                }
+                
+                // Create a FileItem and select it
+                var fileInfo = new FileInfo(mdFile);
+                selectedFile = new FileItem
+                {
+                    Name = fileInfo.Name,
+                    Path = fileInfo.FullName,
+                    Extension = fileInfo.Extension,
+                    IsDirectory = false
+                };
+                
+                await LoadFileContent(mdFile);
+            });
         }
     }
 
@@ -501,6 +540,10 @@
         if (_stateHandler != null)
         {
             AppState.OnChange -= _stateHandler;
+        }
+        if (_dropHandler != null)
+        {
+            MainPage.OnFilesDropped -= _dropHandler;
         }
         autoSaveTimer?.Dispose();
     }

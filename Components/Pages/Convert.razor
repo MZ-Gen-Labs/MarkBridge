@@ -64,10 +64,29 @@
                                disabled="@(!useDocling && !useDoclingGpu)">
                         <label class="form-check-label" for="enableOcr">Enable OCR</label>
                     </div>
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" id="includeImages" @bind="includeImages"
-                               disabled="@(!useDocling && !useDoclingGpu)">
-                        <label class="form-check-label" for="includeImages">Include Images</label>
+                    <div class="mt-2">
+                        <label class="form-label small mb-1">Image Export:</label>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="imageMode" id="imageNone"
+                                   checked="@(imageExportMode == ImageExportMode.None)"
+                                   @onchange="() => imageExportMode = ImageExportMode.None"
+                                   disabled="@(!useDocling && !useDoclingGpu)">
+                            <label class="form-check-label small" for="imageNone">None</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="imageMode" id="imageEmbedded"
+                                   checked="@(imageExportMode == ImageExportMode.Embedded)"
+                                   @onchange="() => imageExportMode = ImageExportMode.Embedded"
+                                   disabled="@(!useDocling && !useDoclingGpu)">
+                            <label class="form-check-label small" for="imageEmbedded">Embedded</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="imageMode" id="imageExternal"
+                                   checked="@(imageExportMode == ImageExportMode.ExternalFiles)"
+                                   @onchange="() => imageExportMode = ImageExportMode.ExternalFiles"
+                                   disabled="@(!useDocling && !useDoclingGpu)">
+                            <label class="form-check-label small" for="imageExternal">Files</label>
+                        </div>
                     </div>
                 </div>
 
@@ -261,10 +280,10 @@
         get => AppState.EnableOcr;
         set => AppState.EnableOcr = value;
     }
-    private bool includeImages
+    private ImageExportMode imageExportMode
     {
-        get => AppState.IncludeImages;
-        set => AppState.IncludeImages = value;
+        get => AppState.ImageExportMode;
+        set => AppState.ImageExportMode = value;
     }
     
     // Output options - now bound to AppState for persistence
@@ -484,7 +503,7 @@
         var options = new MarkBridge.Services.ConversionOptions
         {
             EnableOcr = enableOcr,
-            IncludeImages = includeImages
+            ImageExportMode = imageExportMode
         };
 
         try
