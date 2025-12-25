@@ -348,12 +348,22 @@ public class PythonEnvironmentService
     /// </summary>
     public async Task<(bool success, string message)> InstallPaddleOcrAsync(string venvPath, Action<string>? onProgress = null)
     {
-        onProgress?.Invoke("Installing PaddleOCR (this may take a while)...");
-        // Install paddlepaddle-gpu (CUDA 12.9 compatible, supports RTX 50 series/Arch 120), paddleocr, and dependencies
-        var result = await RunPipCommandAsync(GetVenvPythonPath(venvPath), "install paddlepaddle-gpu paddleocr opencv-python-headless \"paddlex[ocr]\" pymupdf -i https://www.paddlepaddle.org.cn/packages/stable/cu129/", onProgress);
-        return result.exitCode == 0
+        onProgress?.Invoke("Installing PaddlePaddle GPU (CUDA 12.9)...");
+        // 1. Install GPU engine specifically from the CUDA 12.9 index
+        var resultGpu = await RunPipCommandAsync(GetVenvPythonPath(venvPath), "install paddlepaddle-gpu -i https://www.paddlepaddle.org.cn/packages/stable/cu129/", onProgress);
+        
+        if (resultGpu.exitCode != 0)
+        {
+             return (false, $"PaddlePaddle-GPU installation failed: {resultGpu.error}");
+        }
+
+        onProgress?.Invoke("Installing PaddleOCR and dependencies...");
+        // 2. Install generic packages from standard PyPI
+        var resultLibs = await RunPipCommandAsync(GetVenvPythonPath(venvPath), "install paddleocr opencv-python-headless \"paddlex[ocr]\" pymupdf", onProgress);
+
+        return resultLibs.exitCode == 0
             ? (true, "PaddleOCR installed successfully.")
-            : (false, $"Installation failed: {result.error}");
+            : (false, $"Dependency installation failed: {resultLibs.error}");
     }
 
     /// <summary>
