@@ -418,6 +418,9 @@
         _stateHandler = async () => await InvokeAsync(StateHasChanged);
         AppState.OnChange += _stateHandler;
 
+        // Ensure settings are loaded first
+        await AppState.InitializeAsync();
+
         // Load current settings
         pythonPath = AppState.SystemPythonPath;
         venvPath = AppState.VirtualEnvPath;

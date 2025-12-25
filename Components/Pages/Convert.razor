@@ -312,8 +312,11 @@
         ".html", ".htm", ".xml", ".json", ".csv", ".epub", ".zip"
     };
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
+        // Ensure settings are loaded first
+        await AppState.InitializeAsync();
+
         // Subscribe to AppState changes
         _stateHandler = async () => await InvokeAsync(StateHasChanged);
         AppState.OnChange += _stateHandler;

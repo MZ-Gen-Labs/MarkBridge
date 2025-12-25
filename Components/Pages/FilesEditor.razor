@@ -225,6 +225,9 @@
 
     protected override async Task OnInitializedAsync()
     {
+        // Ensure settings are loaded first
+        await AppState.InitializeAsync();
+
         _stateHandler = async () => await InvokeAsync(StateHasChanged);
         AppState.OnChange += _stateHandler;
 
