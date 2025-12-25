@@ -89,6 +89,24 @@ public class AppStateService
         set { _settings.IncludeImages = value; NotifyStateChanged(); }
     }
 
+    public bool UseMarkItDown
+    {
+        get => _settings.UseMarkItDown;
+        set { _settings.UseMarkItDown = value; NotifyStateChanged(); }
+    }
+
+    public bool UseDocling
+    {
+        get => _settings.UseDocling;
+        set { _settings.UseDocling = value; NotifyStateChanged(); }
+    }
+
+    public bool UseDoclingGpu
+    {
+        get => _settings.UseDoclingGpu;
+        set { _settings.UseDoclingGpu = value; NotifyStateChanged(); }
+    }
+
     #endregion
 
     #region Status
@@ -184,6 +202,11 @@ public class AppSettings
     public ConversionEngine SelectedEngine { get; set; } = ConversionEngine.MarkItDown;
     public bool EnableOcr { get; set; } = false;
     public bool IncludeImages { get; set; } = false;
+    
+    // Engine selection (multiple selection support)
+    public bool UseMarkItDown { get; set; } = true;
+    public bool UseDocling { get; set; } = false;
+    public bool UseDoclingGpu { get; set; } = false;
 }
 
 public enum ConversionEngine

@@ -235,18 +235,46 @@
     private bool isConverting = false;
     private bool selectAll = false;
 
-    // Engine options (checkboxes)
-    private bool useMarkItDown = true;
-    private bool useDocling = false;
-    private bool useDoclingGpu = false;
+    // Engine options - now bound to AppState for persistence
+    private bool useMarkItDown
+    {
+        get => AppState.UseMarkItDown;
+        set => AppState.UseMarkItDown = value;
+    }
+    private bool useDocling
+    {
+        get => AppState.UseDocling;
+        set => AppState.UseDocling = value;
+    }
+    private bool useDoclingGpu
+    {
+        get => AppState.UseDoclingGpu;
+        set => AppState.UseDoclingGpu = value;
+    }
     
-    // Engine-specific options
-    private bool enableOcr = false;
-    private bool includeImages = false;
+    // Engine-specific options - now bound to AppState for persistence
+    private bool enableOcr
+    {
+        get => AppState.EnableOcr;
+        set => AppState.EnableOcr = value;
+    }
+    private bool includeImages
+    {
+        get => AppState.IncludeImages;
+        set => AppState.IncludeImages = value;
+    }
     
-    // Output options
-    private bool useOriginalFolder = true;
-    private string outputPath = string.Empty;
+    // Output options - now bound to AppState for persistence
+    private bool useOriginalFolder
+    {
+        get => AppState.UseOriginalFolderForOutput;
+        set => AppState.UseOriginalFolderForOutput = value;
+    }
+    private string outputPath
+    {
+        get => AppState.DefaultOutputPath;
+        set => AppState.DefaultOutputPath = value;
+    }
 
     private CancellationTokenSource? cancellationTokenSource;
     private Action? _stateHandler;
@@ -271,10 +299,6 @@
         // Subscribe to MAUI native drop events
         _dropHandler = HandleFilesDropped;
         MainPage.OnFilesDropped += _dropHandler;
-
-        // Load saved settings
-        outputPath = AppState.DefaultOutputPath;
-        useOriginalFolder = AppState.UseOriginalFolderForOutput;
     }
 
     #region File Drop Handling
