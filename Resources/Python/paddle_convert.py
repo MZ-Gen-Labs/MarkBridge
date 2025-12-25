@@ -82,7 +82,8 @@ def main():
     try:
         # Initialize PaddleOCR engine
         print(f"PaddlePaddle version: {paddle.__version__}")
-        print(f"Available devices: {paddle.device.get_all_device()}")
+        print(f"Computed with CUDA: {paddle.is_compiled_with_cuda()}")
+        print(f"Current device: {paddle.device.get_device()}")
         print(f"Initializing PaddleOCR (lang={lang}, gpu={use_gpu})...")
         device = 'gpu' if use_gpu else 'cpu'
         
