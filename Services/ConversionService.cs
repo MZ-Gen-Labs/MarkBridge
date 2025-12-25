@@ -75,7 +75,7 @@ public class ConversionService
                     doclingOutputPath = doclingResult.outputFilePath;
                     break;
                 case ConversionEngine.PaddleOcr:
-                    result = await RunPaddleOcrAsync(pythonPath, inputPath, fullOutputPath, cancellationToken, onProgress);
+                    result = await RunPaddleOcrAsync(pythonPath, inputPath, fullOutputPath, _appState.UsePaddleOcrGpu, cancellationToken, onProgress);
                     break;
                 default:
                     return new ConversionResult
@@ -168,6 +168,7 @@ public class ConversionService
         string pythonPath,
         string inputPath,
         string outputPath,
+        bool useGpu,
         CancellationToken cancellationToken,
         Action<string>? onProgress)
     {
@@ -187,8 +188,12 @@ public class ConversionService
         }
 
         var args = $"\"{scriptPath}\" \"{inputPath}\" \"{outputPath}\" --lang japan";
+        if (useGpu)
+        {
+            args += " --use_gpu";
+        }
 
-        onProgress?.Invoke($"Running PaddleOCR: {Path.GetFileName(inputPath)}");
+        onProgress?.Invoke($"Running PaddleOCR{(useGpu ? " (GPU)" : "")}: {Path.GetFileName(inputPath)}");
 
         return await RunPythonProcessAsync(pythonPath, args, cancellationToken, onProgress);
     }

@@ -187,6 +187,13 @@ def main():
             if output_dir and not os.path.exists(output_dir):
                 os.makedirs(output_dir)
 
+            # Write final output
+            final_md = "\n\n---\n\n".join(all_md_content)
+            
+            output_dir = os.path.dirname(output_path)
+            if output_dir and not os.path.exists(output_dir):
+                os.makedirs(output_dir)
+
             with open(output_path, 'w', encoding='utf-8') as f:
                 f.write(final_md)
 

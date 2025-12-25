@@ -102,6 +102,12 @@
                             <label class="form-check-label small" for="imageExternal">Files</label>
                         </div>
                     </div>
+
+                    <p class="text-muted small mt-3 mb-2" style="@(!usePaddleOcr ? "opacity: 0.5" : "")">For PaddleOCR:</p>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="usePaddleGpu" @bind="usePaddleGpu" disabled="@(!usePaddleOcr)">
+                        <label class="form-check-label" for="usePaddleGpu">Use GPU (RTX 50 compatible)</label>
+                    </div>
                 </div>
 
                 <!-- Output Mode -->
@@ -291,6 +297,11 @@
     {
         get => AppState.UsePaddleOcr;
         set => AppState.UsePaddleOcr = value;
+    }
+    private bool usePaddleGpu
+    {
+        get => AppState.UsePaddleOcrGpu;
+        set => AppState.UsePaddleOcrGpu = value;
     }
     
     // Engine-specific options - now bound to AppState for persistence

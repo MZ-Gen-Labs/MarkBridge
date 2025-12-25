@@ -119,6 +119,12 @@ public class AppStateService
         set { _settings.UsePaddleOcr = value; NotifyStateChanged(); }
     }
 
+    public bool UsePaddleOcrGpu
+    {
+        get => _settings.UsePaddleOcrGpu;
+        set { _settings.UsePaddleOcrGpu = value; NotifyStateChanged(); }
+    }
+
     #endregion
 
     #region Status
@@ -254,6 +260,7 @@ public class AppSettings
     public bool UseDocling { get; set; } = false;
     public bool UseDoclingGpu { get; set; } = false;
     public bool UsePaddleOcr { get; set; } = false;
+    public bool UsePaddleOcrGpu { get; set; } = false;
 }
 
 public enum ConversionEngine
