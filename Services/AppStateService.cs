@@ -83,12 +83,6 @@ public class AppStateService
         set { _settings.EnableOcr = value; NotifyStateChanged(); }
     }
 
-    public bool IncludeImages
-    {
-        get => _settings.IncludeImages;
-        set { _settings.IncludeImages = value; NotifyStateChanged(); }
-    }
-
     public ImageExportMode ImageExportMode
     {
         get => _settings.ImageExportMode;
@@ -240,7 +234,6 @@ public class AppSettings
     public int MaxConcurrency { get; set; } = 3;
     public ConversionEngine SelectedEngine { get; set; } = ConversionEngine.MarkItDown;
     public bool EnableOcr { get; set; } = false;
-    public bool IncludeImages { get; set; } = false;  // Legacy, keeping for compatibility
     public ImageExportMode ImageExportMode { get; set; } = ImageExportMode.None;
     
     // Engine selection (multiple selection support)

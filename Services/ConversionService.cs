@@ -428,7 +428,6 @@ public class ConversionResult
 public class ConversionOptions
 {
     public bool EnableOcr { get; set; }
-    public bool IncludeImages { get; set; }  // Legacy
     public ImageExportMode ImageExportMode { get; set; } = ImageExportMode.None;
     public int MaxRetries { get; set; } = 5;
 }

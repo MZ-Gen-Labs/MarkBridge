@@ -27,12 +27,6 @@
                     <i class="bi bi-gear me-1"></i>Settings
                 </a>
             </li>
-            <li class="nav-item">
-                <a class="nav-link @(currentTab == "test" ? "active" : "") text-info" 
-                   href="javascript:void(0)" @onclick='() => SwitchTab("test")'>
-                    <i class="bi bi-bug me-1"></i>D&D Test
-                </a>
-            </li>
         </ul>
     </nav>
 
@@ -45,9 +39,6 @@
                 break;
             case "files":
                 <MarkBridge.Components.Pages.FilesEditor />
-                break;
-            case "test":
-                <MarkBridge.Components.Pages.DragDropTest />
                 break;
             case "settings":
             default:

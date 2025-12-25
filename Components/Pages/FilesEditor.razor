@@ -256,6 +256,7 @@
             autoSaveTimer = new System.Timers.Timer(3000);
             autoSaveTimer.Elapsed += async (s, e) => await AutoSave();
             autoSaveTimer.AutoReset = true;
+            autoSaveTimer.Start();
         }
     }
 
