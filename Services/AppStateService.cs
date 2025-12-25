@@ -142,6 +142,30 @@ public class AppStateService
 
     #endregion
 
+    #region Editor State (in-memory only, not persisted)
+
+    /// <summary>
+    /// Currently open file path in the editor
+    /// </summary>
+    public string? EditorOpenFilePath { get; set; }
+
+    /// <summary>
+    /// Current editor content (for unsaved changes)
+    /// </summary>
+    public string EditorContent { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Original content when file was loaded (to detect changes)
+    /// </summary>
+    public string EditorOriginalContent { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Current directory path in the file explorer
+    /// </summary>
+    public string EditorCurrentPath { get; set; } = string.Empty;
+
+    #endregion
+
     #region Persistence
 
     public async Task InitializeAsync()

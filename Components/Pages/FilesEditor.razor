@@ -152,14 +152,30 @@
 @code {
     private List<FileItem> fileItems = new();
     private FileItem? selectedFile;
-    private string currentPath = string.Empty;
     private string searchQuery = string.Empty;
     private bool isLoading = false;
 
+    // Editor state - bound to AppState for persistence across tab switches
+    private string currentPath
+    {
+        get => string.IsNullOrEmpty(AppState.EditorCurrentPath) ? AppState.DefaultOutputPath : AppState.EditorCurrentPath;
+        set => AppState.EditorCurrentPath = value;
+    }
+    
+    private string editorContent
+    {
+        get => AppState.EditorContent;
+        set => AppState.EditorContent = value;
+    }
+    
+    private string originalContent
+    {
+        get => AppState.EditorOriginalContent;
+        set => AppState.EditorOriginalContent = value;
+    }
+
     // Monaco Editor
     private BlazorMonaco.Editor.StandaloneCodeEditor? _editor = null;
-    private string editorContent = string.Empty;
-    private string originalContent = string.Empty;
     private string editorMode = "edit";
     private string renderedMarkdown = string.Empty;
     private bool hasUnsavedChanges => editorContent != originalContent;
@@ -216,8 +232,23 @@
         _dropHandler = HandleFilesDropped;
         MainPage.OnFilesDropped += _dropHandler;
 
-        currentPath = AppState.DefaultOutputPath;
         await LoadFiles();
+
+        // Restore previously open file if any
+        if (!string.IsNullOrEmpty(AppState.EditorOpenFilePath) && File.Exists(AppState.EditorOpenFilePath))
+        {
+            var fileInfo = new FileInfo(AppState.EditorOpenFilePath);
+            selectedFile = new FileItem
+            {
+                Name = fileInfo.Name,
+                Path = fileInfo.FullName,
+                Extension = fileInfo.Extension,
+                IsDirectory = false
+            };
+            
+            // Content is already in AppState, just render markdown
+            RenderMarkdown();
+        }
 
         // Setup auto-save timer
         if (AppState.AutoSaveEnabled)
@@ -392,6 +423,9 @@
             editorContent = await File.ReadAllTextAsync(path);
             originalContent = editorContent;
             
+            // Store the open file path for tab switch persistence
+            AppState.EditorOpenFilePath = path;
+            
             // Set Monaco Editor content if editor is available
             if (_editor != null)
             {
@@ -405,6 +439,7 @@
         {
             editorContent = $"Error loading file: {ex.Message}";
             originalContent = editorContent;
+            AppState.EditorOpenFilePath = null;
             System.Diagnostics.Debug.WriteLine($"Error loading file: {ex.Message}");
         }
     }
