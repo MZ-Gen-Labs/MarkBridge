@@ -9,12 +9,17 @@ MarkBridgeリポジトリのGitHub公開とGitHub Actionsによる自動ビル�
 ```
 MarkBridge/
 ├── .github/
+│   ├── installer/
+│   │   └── MarkBridge.iss    # Inno Setupスクリプト
 │   └── workflows/
-│       └── release.yml      # リリース自動化ワークフロー
-├── docs/                    # ドキュメント
-├── README.md                # プロジェクト説明
-├── LICENSE                  # MITライセンス
-└── MarkBridge.csproj        # プロジェクトファイル
+│       └── release.yml       # リリース自動化ワークフロー
+├── Resources/
+│   └── AppIcon/
+│       └── appicon.png       # アプリアイコン（PNG→ICO自動変換）
+├── docs/                     # ドキュメント
+├── README.md                 # プロジェクト説明
+├── LICENSE                   # MITライセンス
+└── MarkBridge.csproj         # プロジェクトファイル
 ```
 
 ---
@@ -38,19 +43,24 @@ on:
 2. `actions/setup-dotnet@v4` - .NET 8 SDK設定
 3. `dotnet workload install maui-windows` - MAUIワークロードインストール
 4. `dotnet restore -r win-x64` - 依存関係復元
-5. `dotnet publish` - ビルド・発行
+5. `dotnet publish` - Self-containedビルド
 6. `Compress-Archive` - ZIP作成
-7. `softprops/action-gh-release@v1` - GitHub Releaseへアップロード
+7. `choco install imagemagick` - ImageMagickでPNG→ICO変換
+8. `choco install innosetup` - Inno Setupインストール
+9. `ISCC.exe` - インストーラー作成
+10. `softprops/action-gh-release@v1` - GitHub Releaseへアップロード
 
 ### 2.2 リリースの作成方法
 
 ```powershell
 # バージョンタグを作成してプッシュ
-git tag v0.0.2
-git push origin v0.0.2
+git tag v0.0.5
+git push origin v0.0.5
 ```
 
-タグプッシュ後、自動でビルドが実行され、Releasesページにバイナリがアップロードされます。
+タグプッシュ後、自動でビルドが実行され、Releasesページに以下がアップロードされます：
+- `MarkBridge-X.X.X-win-x64-selfcontained.zip` - ポータブル版
+- `MarkBridge-X.X.X-win-x64-setup.exe` - インストーラー版
 
 ---
 
@@ -107,25 +117,25 @@ csprojからは削除するか、コメントアウト:
 
 ## 4. ビルド種類
 
-### フレームワーク依存（Framework-dependent）
+### 現在の設定（Self-contained + Windows App SDK同梱）
+
+```powershell
+dotnet publish -c Release -r win-x64 --self-contained true -p:WindowsAppSDKSelfContained=true -o ./publish
+```
+
+- **サイズ:** インストーラー約50MB / ZIP約75MB
+- **要件:** なし（.NETランタイム + Windows App SDK同梱）
+- **メリット:** ユーザーはランタイムのインストール不要
+
+### 参考：フレームワーク依存（Framework-dependent）
 
 ```powershell
 dotnet publish -c Release -r win-x64 --no-self-contained -o ./publish
 ```
 
 - **サイズ:** 約20-30MB
-- **要件:** .NET 8 Runtimeが別途必要
-- **推奨:** 一般的なケース
-
-### 自己完結型（Self-contained）
-
-```powershell
-dotnet publish -c Release -r win-x64 --self-contained -o ./publish
-```
-
-- **サイズ:** 約150-200MB
-- **要件:** なし（.NETランタイム同梱）
-- **推奨:** ランタイムインストール不可の環境向け
+- **要件:** .NET 8 Runtime + Windows App Runtimeが別途必要
+- **デメリット:** ユーザーがランタイムをインストールする必要がある
 
 ---
 
@@ -165,7 +175,8 @@ dotnet publish -c Release -r win-x64 --self-contained -o ./publish
 Inno Setupを使用して、Windowsインストーラー(.exe)を自動生成します。
 
 **生成されるファイル:**
-- `MarkBridge-X.X.X-win-x64-setup.exe` - インストーラー
+- `MarkBridge-X.X.X-win-x64-setup.exe` - インストーラー（約50MB）
+- `MarkBridge-X.X.X-win-x64-selfcontained.zip` - ポータブル版（約75MB）
 
 ### 7.2 スクリプトの場所
 
@@ -175,13 +186,42 @@ Inno Setupを使用して、Windowsインストーラー(.exe)を自動生成し
 
 ### 7.3 主な機能
 
-- 64ビットWindows対応
-- 日本語/英語対応
-- デスクトップアイコン作成（オプション）
-- スタートメニュー登録
-- アンインストーラー付属
+| 機能 | 説明 |
+|------|------|
+| **64ビットWindows対応** | x64専用 |
+| **日本語/英語対応** | 言語選択可能 |
+| **アップグレードインストール** | 既存バージョンを上書き可能 |
+| **設定引き継ぎ** | 前回の設定（インストール先、言語）を保持 |
+| **アプリ自動終了** | 実行中のアプリを自動で閉じてインストール |
+| **デスクトップアイコン** | オプションで作成可能 |
+| **スタートメニュー登録** | プログラムグループに登録 |
+| **アンインストーラー付属** | 完全削除可能 |
 
-### 7.4 GitHub Actionsでの実行
+### 7.4 アップグレードの仕組み
+
+固定の`AppId`を使用することで、同じアプリとして認識されます：
+
+```iss
+AppId={{8A4D6F2E-3B5C-4A1D-9E8F-7C2B1A0D5E6F}
+```
+
+**ユーザーの操作:**
+1. 新しい`setup.exe`をダウンロード
+2. 実行するだけ（アンインストール不要）
+3. 既存ファイルが新バージョンで上書きされる
+
+### 7.5 アイコンの生成
+
+GitHub Actions上でImageMagickを使用してPNGからICOを自動生成：
+
+```yaml
+- name: Install ImageMagick and create ICO
+  run: |
+    choco install imagemagick -y --no-progress
+    magick "Resources\AppIcon\appicon.png" -define icon:auto-resize=256,128,64,48,32,16 "Resources\AppIcon\appicon.ico"
+```
+
+### 7.6 GitHub Actionsでの実行
 
 ```yaml
 - name: Install Inno Setup
