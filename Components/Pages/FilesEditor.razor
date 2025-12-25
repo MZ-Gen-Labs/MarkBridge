@@ -6,10 +6,15 @@
 @implements IDisposable
 
 <div class="d-flex h-100">
-    <!-- Left Pane: File Explorer -->
+    <!-- Left Pane: File Explorer (Collapsible) -->
+    @if (!isFilePanelCollapsed)
+    {
     <div class="border-end d-flex flex-column" style="width: 300px; min-width: 250px;">
         <!-- Toolbar -->
         <div class="p-2 border-bottom bg-body-tertiary d-flex gap-1">
+            <button class="btn btn-sm btn-outline-secondary" @onclick="ToggleFilePanel" title="Collapse Panel">
+                <i class="bi bi-chevron-left"></i>
+            </button>
             <button class="btn btn-sm btn-outline-primary" @onclick="OpenFolder" title="Open Folder">
                 <i class="bi bi-folder2-open"></i>
             </button>
@@ -61,11 +66,20 @@
             }
         </div>
 
-        <!-- Path bar -->
         <div class="p-2 border-top bg-body-tertiary small text-truncate" title="@currentPath">
             <i class="bi bi-folder me-1"></i>@currentPath
         </div>
     </div>
+    }
+    else
+    {
+    <!-- Collapsed Panel Toggle -->
+    <div class="border-end d-flex flex-column align-items-center py-2" style="width: 40px;">
+        <button class="btn btn-sm btn-outline-secondary" @onclick="ToggleFilePanel" title="Expand Panel">
+            <i class="bi bi-chevron-right"></i>
+        </button>
+    </div>
+    }
 
     <!-- Right Pane: Markdown Editor -->
     <div class="flex-grow-1 d-flex flex-column">
@@ -125,8 +139,14 @@
                             <i class="bi bi-circle-fill me-1" style="font-size: 0.5rem;"></i>Unsaved
                         </span>
                     }
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="ExportAsHtml" title="Export as HTML">
+                        <i class="bi bi-filetype-html me-1"></i>HTML
+                    </button>
                     <button class="btn btn-sm btn-primary" @onclick="SaveFile" disabled="@(!hasUnsavedChanges)">
                         <i class="bi bi-save me-1"></i>Save
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" @onclick="CloseFile" title="Close File">
+                        <i class="bi bi-x-lg"></i>
                     </button>
                 </div>
             </div>
@@ -182,6 +202,7 @@
     private string editorMode = "edit";
     private string renderedMarkdown = string.Empty;
     private bool hasUnsavedChanges => editorContent != originalContent;
+    private bool isFilePanelCollapsed = false;
 
     private System.Timers.Timer? autoSaveTimer;
     private Action? _stateHandler;
@@ -571,6 +592,78 @@
             renderedMarkdown = "<p class='text-danger'>Error rendering markdown</p>";
         }
     }
+
+    private void ToggleFilePanel()
+    {
+        isFilePanelCollapsed = !isFilePanelCollapsed;
+    }
+
+    private void CloseFile()
+    {
+        // Save if there are unsaved changes (prompt could be added later)
+        if (hasUnsavedChanges)
+        {
+            // For now, just discard changes - could add confirmation dialog
+        }
+        
+        selectedFile = null;
+        editorContent = string.Empty;
+        originalContent = string.Empty;
+        renderedMarkdown = string.Empty;
+        AppState.EditorOpenFilePath = null;
+    }
+
+    private async Task ExportAsHtml()
+    {
+        if (selectedFile == null) return;
+        
+        try
+        {
+            // Build HTML with styling
+            var pipeline = new Markdig.MarkdownPipelineBuilder()
+                .UsePipeTables()
+                .UseTaskLists()
+                .UseAutoLinks()
+                .UseEmphasisExtras()
+                .Build();
+            var htmlBody = Markdig.Markdown.ToHtml(editorContent, pipeline);
+            
+            var htmlContent = $@"<!DOCTYPE html>
+<html lang=""ja"">
+<head>
+    <meta charset=""UTF-8"">
+    <meta name=""viewport"" content=""width=device-width, initial-scale=1.0"">
+    <title>{Path.GetFileNameWithoutExtension(selectedFile.Name)}</title>
+    <style>
+        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; max-width: 900px; margin: 0 auto; padding: 2rem; }}
+        h1, h2, h3 {{ color: #333; }}
+        code {{ background: #f4f4f4; padding: 0.2em 0.4em; border-radius: 3px; font-family: 'Consolas', monospace; }}
+        pre {{ background: #f4f4f4; padding: 1rem; border-radius: 5px; overflow-x: auto; }}
+        pre code {{ background: none; padding: 0; }}
+        table {{ border-collapse: collapse; width: 100%; margin: 1rem 0; }}
+        th, td {{ border: 1px solid #ddd; padding: 0.5rem; text-align: left; }}
+        th {{ background: #f0f0f0; font-weight: 600; }}
+        blockquote {{ border-left: 4px solid #ddd; margin: 1rem 0; padding-left: 1rem; color: #666; }}
+        img {{ max-width: 100%; height: auto; }}
+    </style>
+</head>
+<body>
+{htmlBody}
+</body>
+</html>";
+            
+            // Save to same location with .html extension
+            var htmlPath = Path.ChangeExtension(selectedFile.Path, ".html");
+            await File.WriteAllTextAsync(htmlPath, htmlContent);
+            
+            AppState.SetStatus($"Exported to {Path.GetFileName(htmlPath)}");
+        }
+        catch (Exception ex)
+        {
+            AppState.SetStatus($"Export failed: {ex.Message}");
+        }
+    }
+
 
     private string GetFileIcon(string extension) => extension?.ToLower() switch
     {
