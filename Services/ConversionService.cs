@@ -193,9 +193,15 @@ public class ConversionService
                 sb.Append(" --ocr-engine tesseract");
             }
 
+            // Image export mode: embedded (base64) or placeholder (no images)
             if (options.IncludeImages)
             {
                 sb.Append(" --image-export-mode embedded");
+            }
+            else
+            {
+                // Explicitly set to placeholder to prevent image embedding
+                sb.Append(" --image-export-mode placeholder");
             }
 
             // Explicitly set device to prevent Docling from auto-detecting GPU
