@@ -249,6 +249,49 @@ public class PythonEnvironmentService
     }
 
     /// <summary>
+    /// Check if PyTorch with CUDA is installed and get CUDA version
+    /// </summary>
+    public async Task<(bool installed, string? torchVersion, string? cudaVersion)> CheckCudaAsync(string venvPath)
+    {
+        try
+        {
+            var pythonPath = GetVenvPythonPath(venvPath);
+            var psi = new ProcessStartInfo
+            {
+                FileName = pythonPath,
+                Arguments = "-c \"import torch; print(torch.__version__); print(torch.version.cuda if torch.cuda.is_available() else 'N/A')\"",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using var process = Process.Start(psi);
+            if (process == null) return (false, null, null);
+
+            var output = await process.StandardOutput.ReadToEndAsync();
+            await process.WaitForExitAsync();
+
+            if (process.ExitCode == 0 && !string.IsNullOrEmpty(output))
+            {
+                var lines = output.Trim().Split('\n');
+                if (lines.Length >= 2)
+                {
+                    var torchVersion = lines[0].Trim();
+                    var cudaVersion = lines[1].Trim();
+                    if (cudaVersion != "N/A")
+                    {
+                        return (true, torchVersion, cudaVersion);
+                    }
+                }
+            }
+        }
+        catch { }
+
+        return (false, null, null);
+    }
+
+    /// <summary>
     /// Install MarkItDown
     /// </summary>
     public async Task<(bool success, string message)> InstallMarkItDownAsync(string venvPath, Action<string>? onProgress = null)

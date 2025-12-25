@@ -288,6 +288,11 @@
                     <div>
                         <strong>NVIDIA CUDA Support</strong>
                         <span class="text-muted ms-2">GPU acceleration for Docling</span>
+                        @if (cudaInstalled && !string.IsNullOrEmpty(cudaVersion))
+                        {
+                            <span class="badge bg-success ms-2">CUDA @cudaVersion</span>
+                            <span class="badge bg-info ms-1">PyTorch @torchVersion</span>
+                        }
                     </div>
                     <div class="btn-group">
                         <button class="btn btn-outline-secondary" @onclick="() => InstallCuda(false)" disabled="@isInstalling">
@@ -295,7 +300,7 @@
                             {
                                 <span class="spinner-border spinner-border-sm me-1"></span>
                             }
-                            <i class="bi bi-gpu-card me-1"></i> Install CUDA
+                            <i class="bi bi-gpu-card me-1"></i> @(cudaInstalled ? "Reinstall" : "Install") CUDA
                         </button>
                         <button class="btn btn-outline-secondary" @onclick="() => InstallCuda(true)" disabled="@isInstalling"
                                 title="For RTX 50 series (Blackwell) - requires CUDA 12.8">
@@ -415,6 +420,9 @@
     private string? doclingVersion;
     private bool easyocrInstalled = false;
     private string? easyocrVersion;
+    private bool cudaInstalled = false;
+    private string? torchVersion;
+    private string? cudaVersion;
     private bool isInstalling = false;
     private string installingPackage = string.Empty;
     private string installLog = string.Empty;
@@ -877,6 +885,11 @@
         var easyocr = await PythonEnv.CheckEasyOcrAsync(venvPath);
         easyocrInstalled = easyocr.installed;
         easyocrVersion = easyocr.version;
+
+        var cuda = await PythonEnv.CheckCudaAsync(venvPath);
+        cudaInstalled = cuda.installed;
+        torchVersion = cuda.torchVersion;
+        cudaVersion = cuda.cudaVersion;
     }
 
     private async Task InstallMarkItDown()
