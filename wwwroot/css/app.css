@@ -269,3 +269,64 @@ html, body {
     margin-left: 1rem;
     cursor: pointer;
 }
+
+/* Dark Theme Support */
+[data-bs-theme="dark"] .drop-zone {
+    border-color: #495057;
+    background-color: #212529;
+}
+
+[data-bs-theme="dark"] .drop-zone:hover,
+[data-bs-theme="dark"] .drop-zone.drag-over {
+    border-color: var(--app-primary);
+    background-color: rgba(13, 110, 253, 0.15);
+}
+
+[data-bs-theme="dark"] .settings-card {
+    border-color: #495057;
+    background: #212529;
+}
+
+[data-bs-theme="dark"] .settings-card .card-header {
+    background: linear-gradient(180deg, #2b3035 0%, #212529 100%);
+    border-bottom-color: #495057;
+}
+
+[data-bs-theme="dark"] .file-tree-item:hover {
+    background-color: #343a40;
+}
+
+[data-bs-theme="dark"] .queue-table th {
+    background-color: #2b3035;
+    border-bottom-color: #495057;
+}
+
+[data-bs-theme="dark"] .queue-item-status.status-queued {
+    background-color: #343a40;
+    color: #adb5bd;
+}
+
+[data-bs-theme="dark"] .editor-toolbar {
+    background-color: #2b3035;
+    border-bottom-color: #495057;
+}
+
+[data-bs-theme="dark"] .markdown-preview code {
+    background-color: #343a40;
+}
+
+[data-bs-theme="dark"] .markdown-preview pre {
+    background-color: #343a40;
+}
+
+[data-bs-theme="dark"] ::-webkit-scrollbar-track {
+    background: #2b3035;
+}
+
+[data-bs-theme="dark"] ::-webkit-scrollbar-thumb {
+    background: #495057;
+}
+
+[data-bs-theme="dark"] ::-webkit-scrollbar-thumb:hover {
+    background: #6c757d;
+}
