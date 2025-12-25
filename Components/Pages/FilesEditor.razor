@@ -1,3 +1,6 @@
+@using Markdig
+@using Markdig.Extensions.Tables
+@using Markdig.Extensions.TaskLists
 @inject Services.AppStateService AppState
 @inject IJSRuntime JS
 @implements IDisposable
@@ -554,7 +557,13 @@
     {
         try
         {
-            var pipeline = new Markdig.MarkdownPipelineBuilder().Build();
+            // Enable extensions including tables, task lists, auto-links, etc.
+            var pipeline = new Markdig.MarkdownPipelineBuilder()
+                .UsePipeTables()
+                .UseTaskLists()
+                .UseAutoLinks()
+                .UseEmphasisExtras()
+                .Build();
             renderedMarkdown = Markdig.Markdown.ToHtml(editorContent, pipeline);
         }
         catch

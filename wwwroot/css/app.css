@@ -8,7 +8,8 @@
     --app-warning: #ffc107;
 }
 
-html, body {
+html,
+body {
     font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
     height: 100%;
     margin: 0;
@@ -47,7 +48,7 @@ html, body {
     border-radius: 8px;
     border: 1px solid #dee2e6;
     background: #fff;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
 .settings-card .card-header {
@@ -159,23 +160,26 @@ html, body {
 }
 
 .progress-bar-animated {
-    background: linear-gradient(
-        45deg,
-        rgba(255, 255, 255, 0.15) 25%,
-        transparent 25%,
-        transparent 50%,
-        rgba(255, 255, 255, 0.15) 50%,
-        rgba(255, 255, 255, 0.15) 75%,
-        transparent 75%,
-        transparent
-    );
+    background: linear-gradient(45deg,
+            rgba(255, 255, 255, 0.15) 25%,
+            transparent 25%,
+            transparent 50%,
+            rgba(255, 255, 255, 0.15) 50%,
+            rgba(255, 255, 255, 0.15) 75%,
+            transparent 75%,
+            transparent);
     background-size: 1rem 1rem;
     animation: progress-bar-stripes 1s linear infinite;
 }
 
 @keyframes progress-bar-stripes {
-    0% { background-position: 1rem 0; }
-    100% { background-position: 0 0; }
+    0% {
+        background-position: 1rem 0;
+    }
+
+    100% {
+        background-position: 0 0;
+    }
 }
 
 /* Editor */
@@ -227,6 +231,27 @@ html, body {
 .markdown-preview pre code {
     background: none;
     padding: 0;
+}
+
+.markdown-preview table {
+    width: 100%;
+    margin-bottom: 1rem;
+    border-collapse: collapse;
+}
+
+.markdown-preview th,
+.markdown-preview td {
+    padding: 0.5rem;
+    border: 1px solid #dee2e6;
+}
+
+.markdown-preview th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+}
+
+.markdown-preview tr:nth-child(even) {
+    background-color: #f8f9fa;
 }
 
 /* Scrollbar */
@@ -329,4 +354,17 @@ html, body {
 
 [data-bs-theme="dark"] ::-webkit-scrollbar-thumb:hover {
     background: #6c757d;
+}
+
+[data-bs-theme="dark"] .markdown-preview th,
+[data-bs-theme="dark"] .markdown-preview td {
+    border-color: #495057;
+}
+
+[data-bs-theme="dark"] .markdown-preview th {
+    background-color: #2b3035;
+}
+
+[data-bs-theme="dark"] .markdown-preview tr:nth-child(even) {
+    background-color: #2b3035;
 }
