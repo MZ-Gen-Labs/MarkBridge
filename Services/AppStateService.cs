@@ -83,6 +83,12 @@ public class AppStateService
         set { _settings.EnableOcr = value; NotifyStateChanged(); }
     }
 
+    public bool ForceFullPageOcr
+    {
+        get => _settings.ForceFullPageOcr;
+        set { _settings.ForceFullPageOcr = value; NotifyStateChanged(); }
+    }
+
     public ImageExportMode ImageExportMode
     {
         get => _settings.ImageExportMode;
@@ -234,6 +240,7 @@ public class AppSettings
     public int MaxConcurrency { get; set; } = 3;
     public ConversionEngine SelectedEngine { get; set; } = ConversionEngine.MarkItDown;
     public bool EnableOcr { get; set; } = false;
+    public bool ForceFullPageOcr { get; set; } = false;
     public ImageExportMode ImageExportMode { get; set; } = ImageExportMode.None;
     
     // Engine selection (multiple selection support)

@@ -192,6 +192,12 @@ public class ConversionService
             {
                 // Use EasyOCR with Japanese and English support
                 sb.Append(" --ocr-engine easyocr --ocr-lang ja,en");
+                
+                // Force full page OCR for better accuracy on mixed content
+                if (options.ForceFullPageOcr)
+                {
+                    sb.Append(" --force-full-page-ocr");
+                }
             }
 
             // Image export mode: none (placeholder), embedded (base64), or external files (referenced)
@@ -429,6 +435,7 @@ public class ConversionResult
 public class ConversionOptions
 {
     public bool EnableOcr { get; set; }
+    public bool ForceFullPageOcr { get; set; }
     public ImageExportMode ImageExportMode { get; set; } = ImageExportMode.None;
     public int MaxRetries { get; set; } = 5;
 }
