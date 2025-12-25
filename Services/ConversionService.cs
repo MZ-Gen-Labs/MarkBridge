@@ -190,7 +190,8 @@ public class ConversionService
 
             if (options.EnableOcr)
             {
-                sb.Append(" --ocr-engine easyocr");
+                // Use EasyOCR with Japanese and English support
+                sb.Append(" --ocr-engine easyocr --ocr-lang ja,en");
             }
 
             // Image export mode: none (placeholder), embedded (base64), or external files (referenced)
