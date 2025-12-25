@@ -106,45 +106,62 @@
     private string currentTab = "settings";
     private Action? _stateHandler;
     private bool isInitializing = true;
-    private string initializationStatus = "環境を確認中...";
+    private string initializationStatus = "起動中...";
+    private bool hasInitialized = false;
 
     [Inject] private IJSRuntime JS { get; set; } = default!;
 
-    protected override async Task OnInitializedAsync()
+    protected override void OnInitialized()
     {
         _stateHandler = async () => await InvokeAsync(StateHasChanged);
         AppState.OnChange += _stateHandler;
-        
-        // Show loading screen
-        isInitializing = true;
-        StateHasChanged();
-        
-        // Initialize settings
-        initializationStatus = "設定を読み込み中...";
-        StateHasChanged();
-        await AppState.InitializeAsync();
-        
-        // Check Python environment
-        initializationStatus = "Python環境を確認中...";
-        StateHasChanged();
-        await Task.Delay(100); // Small delay to show status
-        
-        // Set initial tab based on setup status
-        if (AppState.IsVenvActive)
-        {
-            currentTab = "convert";
-        }
-        
-        // Initialization complete
-        isInitializing = false;
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
         {
-            // Apply saved theme
+            // Apply saved theme first
             await JS.InvokeVoidAsync("setTheme", AppState.Theme);
+            
+            // Run initialization after first render so loading screen is visible
+            await RunInitializationAsync();
+        }
+    }
+
+    private async Task RunInitializationAsync()
+    {
+        if (hasInitialized) return;
+        hasInitialized = true;
+        
+        try
+        {
+            // Step 1: Load settings
+            initializationStatus = "設定を読み込み中...";
+            StateHasChanged();
+            await Task.Delay(300); // Show status for a moment
+            
+            await AppState.InitializeAsync();
+            
+            // Step 2: Check Python environment
+            initializationStatus = "Python環境を確認中...";
+            StateHasChanged();
+            await Task.Delay(500); // Show status for a moment
+            
+            // Set initial tab based on setup status
+            if (AppState.IsVenvActive)
+            {
+                currentTab = "convert";
+            }
+            
+            // Initialization complete
+            isInitializing = false;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            initializationStatus = $"エラー: {ex.Message}";
+            StateHasChanged();
         }
     }
 
