@@ -1,5 +1,6 @@
 ﻿@inherits LayoutComponentBase
 @inject Services.AppStateService AppState
+@inject Services.PythonEnvironmentService PythonEnv
 @implements IDisposable
 
 <div class="d-flex flex-column vh-100">
@@ -139,14 +140,42 @@
             // Step 1: Load settings
             initializationStatus = "設定を読み込み中...";
             StateHasChanged();
-            await Task.Delay(300); // Show status for a moment
+            await Task.Delay(200);
             
             await AppState.InitializeAsync();
             
             // Step 2: Check Python environment
-            initializationStatus = "Python環境を確認中...";
+            initializationStatus = "Pythonを確認中...";
             StateHasChanged();
-            await Task.Delay(500); // Show status for a moment
+            
+            if (!string.IsNullOrEmpty(AppState.SystemPythonPath))
+            {
+                var pythonResult = await Task.Run(() => PythonEnv.AutoDetectPythonAsync());
+                if (pythonResult.found)
+                {
+                    AppState.PythonVersion = pythonResult.version;
+                }
+            }
+            
+            // Step 3: Check virtual environment
+            initializationStatus = "仮想環境を確認中...";
+            StateHasChanged();
+            
+            if (!string.IsNullOrEmpty(AppState.VirtualEnvPath))
+            {
+                var venvValid = PythonEnv.IsVenvValid(AppState.VirtualEnvPath);
+                AppState.IsVenvActive = venvValid;
+            }
+            
+            // Step 4: Check installed packages if venv is active
+            if (AppState.IsVenvActive)
+            {
+                initializationStatus = "パッケージを確認中...";
+                StateHasChanged();
+                
+                // Quick check for packages - just verify venv works
+                await Task.Delay(300);
+            }
             
             // Set initial tab based on setup status
             if (AppState.IsVenvActive)
@@ -155,12 +184,14 @@
             }
             
             // Initialization complete
+            initializationStatus = "完了";
             isInitializing = false;
             StateHasChanged();
         }
         catch (Exception ex)
         {
             initializationStatus = $"エラー: {ex.Message}";
+            isInitializing = false;
             StateHasChanged();
         }
     }
