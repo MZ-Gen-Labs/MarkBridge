@@ -27,31 +27,43 @@
                     <label class="form-label fw-bold">Conversion Engines</label>
                     <p class="text-muted small mb-2">Select one or more engines:</p>
                     <div class="form-check">
-                        <input class="form-check-input" type="checkbox" id="useMarkItDown" @bind="useMarkItDown">
+                        <input class="form-check-input" type="checkbox" id="useMarkItDown" 
+                               checked="@useMarkItDown" @onchange="e => OnEngineToggle(ConversionEngine.MarkItDown, (bool)(e.Value ?? false))">
                         <label class="form-check-label" for="useMarkItDown">
                             <i class="bi bi-lightning-fill text-warning me-1"></i>MarkItDown
                             <span class="text-muted small">→ _it.md</span>
                         </label>
                     </div>
                     <div class="form-check">
-                        <input class="form-check-input" type="checkbox" id="useDocling" @bind="useDocling">
+                        <input class="form-check-input" type="checkbox" id="useDocling" 
+                               checked="@useDocling" @onchange="e => OnEngineToggle(ConversionEngine.Docling, (bool)(e.Value ?? false))">
                         <label class="form-check-label" for="useDocling">
                             <i class="bi bi-file-earmark-pdf text-danger me-1"></i>Docling (CPU)
-                            <span class="text-muted small">→ _dl.md</span>
-                        </label>
-                    </div>
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" id="useDoclingGpu" @bind="useDoclingGpu">
-                        <label class="form-check-label" for="useDoclingGpu">
-                            <i class="bi bi-gpu-card text-success me-1"></i>Docling (GPU)
                             <span class="text-muted small">→ _dlc.md</span>
                         </label>
                     </div>
                     <div class="form-check">
-                        <input class="form-check-input" type="checkbox" id="usePaddleOcr" @bind="usePaddleOcr">
-                        <label class="form-check-label" for="usePaddleOcr">
-                            <i class="bi bi-grid-3x3 text-info me-1"></i>PaddleOCR
-                            <span class="text-muted small">→ _pd.md</span>
+                        <input class="form-check-input" type="checkbox" id="useDoclingGpu" 
+                               checked="@useDoclingGpu" @onchange="e => OnEngineToggle(ConversionEngine.DoclingGpu, (bool)(e.Value ?? false))">
+                        <label class="form-check-label" for="useDoclingGpu">
+                            <i class="bi bi-gpu-card text-success me-1"></i>Docling (GPU)
+                            <span class="text-muted small">→ _dlg.md</span>
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="usePaddleOcrCpu" 
+                               checked="@usePaddleOcrCpu" @onchange="e => OnEngineToggle(ConversionEngine.PaddleOcrCpu, (bool)(e.Value ?? false))">
+                        <label class="form-check-label" for="usePaddleOcrCpu">
+                            <i class="bi bi-grid-3x3 text-info me-1"></i>PaddleOCR (CPU)
+                            <span class="text-muted small">→ _pdc.md</span>
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="usePaddleOcrGpu" 
+                               checked="@usePaddleOcrGpu" @onchange="e => OnEngineToggle(ConversionEngine.PaddleOcrGpu, (bool)(e.Value ?? false))">
+                        <label class="form-check-label" for="usePaddleOcrGpu">
+                            <i class="bi bi-gpu-card text-info me-1"></i>PaddleOCR (GPU)
+                            <span class="text-muted small">→ _pdg.md</span>
                         </label>
                     </div>
                     @if (!HasEngineSelected)
@@ -78,6 +90,21 @@
                             Force Full Page OCR
                         </label>
                     </div>
+                    <div class="mt-2 ms-3" style="@(!enableOcr || (!useDocling && !useDoclingGpu) ? "opacity: 0.5" : "")">
+                        <label class="form-label small mb-1">OCR Engine (select one or both):</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="useEasyOcr"
+                                   checked="@useEasyOcr" @onchange="e => useEasyOcr = (bool)(e.Value ?? false)"
+                                   disabled="@(!enableOcr || (!useDocling && !useDoclingGpu))">
+                            <label class="form-check-label small" for="useEasyOcr">EasyOCR (GPU, 80+ languages)</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="useRapidOcr"
+                                   checked="@useRapidOcr" @onchange="e => useRapidOcr = (bool)(e.Value ?? false)"
+                                   disabled="@(!enableOcr || (!useDocling && !useDoclingGpu))">
+                            <label class="form-check-label small" for="useRapidOcr">RapidOCR (faster, lightweight)</label>
+                        </div>
+                    </div>
                     <div class="mt-2">
                         <label class="form-label small mb-1">Image Export:</label>
                         <div class="form-check form-check-inline">
@@ -101,12 +128,6 @@
                                    disabled="@(!useDocling && !useDoclingGpu)">
                             <label class="form-check-label small" for="imageExternal">Files</label>
                         </div>
-                    </div>
-
-                    <p class="text-muted small mt-3 mb-2" style="@(!usePaddleOcr ? "opacity: 0.5" : "")">For PaddleOCR:</p>
-                    <div class="form-check mb-3">
-                        <input class="form-check-input" type="checkbox" id="usePaddleGpu" @bind="usePaddleGpu" disabled="@(!usePaddleOcr)">
-                        <label class="form-check-label" for="usePaddleGpu">Use GPU (RTX 50 compatible)</label>
                     </div>
                 </div>
 
@@ -132,6 +153,26 @@
                             </button>
                         </div>
                     }
+                    
+                    <label class="form-label fw-bold mt-3">File Exists</label>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="overwriteMode" id="modeOverwrite"
+                               checked="@(outputOverwriteMode == OutputOverwriteMode.Overwrite)" 
+                               @onchange="() => outputOverwriteMode = OutputOverwriteMode.Overwrite">
+                        <label class="form-check-label" for="modeOverwrite">Overwrite</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="overwriteMode" id="modeSkip"
+                               checked="@(outputOverwriteMode == OutputOverwriteMode.Skip)" 
+                               @onchange="() => outputOverwriteMode = OutputOverwriteMode.Skip">
+                        <label class="form-check-label" for="modeSkip">Skip (don't convert)</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="overwriteMode" id="modeRename"
+                               checked="@(outputOverwriteMode == OutputOverwriteMode.Rename)" 
+                               @onchange="() => outputOverwriteMode = OutputOverwriteMode.Rename">
+                        <label class="form-check-label" for="modeRename">Rename (_1, _2...)</label>
+                    </div>
                 </div>
             </div>
         </div>
@@ -228,11 +269,19 @@
                                             @if (item.Status == ConversionStatus.Converting)
                                             {
                                                 <span class="spinner-border spinner-border-sm me-1"></span>
+                                                <span>Converting</span>
+                                                @if (!string.IsNullOrEmpty(item.ElapsedTimeText))
+                                                {
+                                                    <span class="text-muted ms-1 small">(@item.ElapsedTimeText)</span>
+                                                }
                                             }
-                                            @item.Status
-                                            @if (item.Status == ConversionStatus.Completed && item.ElapsedTime.HasValue)
+                                            else
                                             {
-                                                <span class="text-muted ms-1 small">(@item.ElapsedTimeText)</span>
+                                                @item.Status
+                                                @if ((item.Status == ConversionStatus.Completed || item.Status == ConversionStatus.Failed) && !string.IsNullOrEmpty(item.ElapsedTimeText))
+                                                {
+                                                    <span class="text-muted ms-1 small">(@item.ElapsedTimeText)</span>
+                                                }
                                             }
                                         </span>
                                     </td>
@@ -293,12 +342,12 @@
         get => AppState.UseDoclingGpu;
         set => AppState.UseDoclingGpu = value;
     }
-    private bool usePaddleOcr
+    private bool usePaddleOcrCpu
     {
-        get => AppState.UsePaddleOcr;
-        set => AppState.UsePaddleOcr = value;
+        get => AppState.UsePaddleOcrCpu;
+        set => AppState.UsePaddleOcrCpu = value;
     }
-    private bool usePaddleGpu
+    private bool usePaddleOcrGpu
     {
         get => AppState.UsePaddleOcrGpu;
         set => AppState.UsePaddleOcrGpu = value;
@@ -320,6 +369,16 @@
         get => AppState.ImageExportMode;
         set => AppState.ImageExportMode = value;
     }
+    private bool useEasyOcr
+    {
+        get => AppState.UseEasyOcr;
+        set => AppState.UseEasyOcr = value;
+    }
+    private bool useRapidOcr
+    {
+        get => AppState.UseRapidOcr;
+        set => AppState.UseRapidOcr = value;
+    }
     
     // Output options - now bound to AppState for persistence
     private bool useOriginalFolder
@@ -332,13 +391,18 @@
         get => AppState.DefaultOutputPath;
         set => AppState.DefaultOutputPath = value;
     }
+    private OutputOverwriteMode outputOverwriteMode
+    {
+        get => AppState.OutputOverwriteMode;
+        set => AppState.OutputOverwriteMode = value;
+    }
 
     private CancellationTokenSource? cancellationTokenSource;
     private Action? _stateHandler;
     private Action<List<string>>? _dropHandler;
 
     private int SelectedCount => queueItems.Count(x => x.IsSelected);
-    private bool HasEngineSelected => useMarkItDown || useDocling || useDoclingGpu || usePaddleOcr;
+    private bool HasEngineSelected => useMarkItDown || useDocling || useDoclingGpu || usePaddleOcrCpu || usePaddleOcrGpu;
 
     // Supported file extensions
     private static readonly HashSet<string> SupportedExtensions = new(StringComparer.OrdinalIgnoreCase)
@@ -418,10 +482,136 @@
             // Create separate queue items for each selected engine
             foreach (var engine in engines)
             {
-                // Check for duplicates (same file + same engine)
+                // For Docling engines, create separate items for each selected OCR engine
+                if (engine == ConversionEngine.Docling || engine == ConversionEngine.DoclingGpu)
+                {
+                    var ocrEngines = GetSelectedOcrEngines();
+                    if (ocrEngines.Count == 0)
+                    {
+                        // No OCR engine selected, use default (easyocr)
+                        AddQueueItemIfNotExists(filePath, ext, engine, "easyocr");
+                    }
+                    else
+                    {
+                        // Create separate item for each OCR engine
+                        foreach (var ocrEngine in ocrEngines)
+                        {
+                            AddQueueItemIfNotExists(filePath, ext, engine, ocrEngine);
+                        }
+                    }
+                }
+                else
+                {
+                    // Non-Docling engines
+                    AddQueueItemIfNotExists(filePath, ext, engine, null);
+                }
+            }
+        }
+    }
+
+    private void AddQueueItemIfNotExists(string filePath, string ext, ConversionEngine engine, string? ocrEngine)
+    {
+        // Check for duplicates (same file + same engine + same OCR engine)
+        if (queueItems.Any(q => q.FilePath.Equals(filePath, StringComparison.OrdinalIgnoreCase) 
+                                && q.Engine == engine 
+                                && q.OcrEngine == ocrEngine))
+            return;
+
+        queueItems.Add(new QueueItem
+        {
+            FileName = Path.GetFileName(filePath),
+            FilePath = filePath,
+            FileType = ext.TrimStart('.').ToUpperInvariant(),
+            IsSelected = true,
+            Status = ConversionStatus.Queued,
+            Engine = engine,
+            OcrEngine = ocrEngine
+        });
+    }
+
+    private List<string> GetSelectedOcrEngines()
+    {
+        var ocrEngines = new List<string>();
+        if (useEasyOcr) ocrEngines.Add("easyocr");
+        if (useRapidOcr) ocrEngines.Add("rapidocr");
+        return ocrEngines;
+    }
+
+    private List<MarkBridge.Services.ConversionEngine> GetSelectedEngines()
+    {
+        var engines = new List<MarkBridge.Services.ConversionEngine>();
+        if (useMarkItDown) engines.Add(MarkBridge.Services.ConversionEngine.MarkItDown);
+        if (useDocling) engines.Add(MarkBridge.Services.ConversionEngine.Docling);
+        if (useDoclingGpu) engines.Add(MarkBridge.Services.ConversionEngine.DoclingGpu);
+        if (usePaddleOcrCpu) engines.Add(MarkBridge.Services.ConversionEngine.PaddleOcrCpu);
+        if (usePaddleOcrGpu) engines.Add(MarkBridge.Services.ConversionEngine.PaddleOcrGpu);
+        return engines;
+    }
+
+    /// <summary>
+    /// Handles engine checkbox toggle - updates AppState and reconfigures queue dynamically
+    /// This method is designed to be extensible for future engine additions
+    /// </summary>
+    private void OnEngineToggle(ConversionEngine engine, bool isChecked)
+    {
+        // 1. Update the corresponding AppState property
+        SetEngineState(engine, isChecked);
+
+        // 2. Reconfigure the queue based on new engine selection
+        ReconfigureQueueForEngineChange(engine, isChecked);
+        
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Sets the engine state in AppState - extensible mapping for future engines
+    /// </summary>
+    private void SetEngineState(ConversionEngine engine, bool isChecked)
+    {
+        switch (engine)
+        {
+            case ConversionEngine.MarkItDown:
+                AppState.UseMarkItDown = isChecked;
+                break;
+            case ConversionEngine.Docling:
+                AppState.UseDocling = isChecked;
+                break;
+            case ConversionEngine.DoclingGpu:
+                AppState.UseDoclingGpu = isChecked;
+                break;
+            case ConversionEngine.PaddleOcrCpu:
+                AppState.UsePaddleOcrCpu = isChecked;
+                break;
+            case ConversionEngine.PaddleOcrGpu:
+                AppState.UsePaddleOcrGpu = isChecked;
+                break;
+            // Future engines can be added here
+        }
+    }
+
+    /// <summary>
+    /// Reconfigures the queue when an engine is toggled on/off
+    /// - When engine is enabled: adds queue items for existing files with new engine
+    /// - When engine is disabled: removes queued items (keeps completed/failed items)
+    /// </summary>
+    private void ReconfigureQueueForEngineChange(ConversionEngine engine, bool isEnabled)
+    {
+        if (isEnabled)
+        {
+            // Get unique file paths from existing queue items (regardless of engine)
+            var existingFilePaths = queueItems
+                .Select(q => q.FilePath)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            // Add new queue items for each file with the newly enabled engine
+            foreach (var filePath in existingFilePaths)
+            {
+                // Skip if already exists with this engine
                 if (queueItems.Any(q => q.FilePath.Equals(filePath, StringComparison.OrdinalIgnoreCase) && q.Engine == engine))
                     continue;
 
+                var ext = Path.GetExtension(filePath);
                 queueItems.Add(new QueueItem
                 {
                     FileName = Path.GetFileName(filePath),
@@ -433,16 +623,18 @@
                 });
             }
         }
-    }
+        else
+        {
+            // Remove queued items for the disabled engine (preserve completed/converting/failed)
+            var itemsToRemove = queueItems
+                .Where(q => q.Engine == engine && q.Status == ConversionStatus.Queued)
+                .ToList();
 
-    private List<MarkBridge.Services.ConversionEngine> GetSelectedEngines()
-    {
-        var engines = new List<MarkBridge.Services.ConversionEngine>();
-        if (useMarkItDown) engines.Add(MarkBridge.Services.ConversionEngine.MarkItDown);
-        if (useDocling) engines.Add(MarkBridge.Services.ConversionEngine.Docling);
-        if (useDoclingGpu) engines.Add(MarkBridge.Services.ConversionEngine.DoclingGpu);
-        if (usePaddleOcr) engines.Add(MarkBridge.Services.ConversionEngine.PaddleOcr);
-        return engines;
+            foreach (var item in itemsToRemove)
+            {
+                queueItems.Remove(item);
+            }
+        }
     }
 
     private async Task OpenFilePicker()
@@ -542,8 +734,14 @@
         var options = new MarkBridge.Services.ConversionOptions
         {
             EnableOcr = enableOcr,
-            ImageExportMode = imageExportMode
+            ImageExportMode = imageExportMode,
+            UseEasyOcr = useEasyOcr,
+            UseRapidOcr = useRapidOcr,
+            OutputOverwriteMode = outputOverwriteMode
         };
+
+        // Start the elapsed time timer for live updates
+        StartElapsedTimeTimer();
 
         try
         {
@@ -576,17 +774,29 @@
                     try
                     {
                         item.Status = ConversionStatus.Converting;
+                        item.StartTime = DateTime.Now;
                         await InvokeAsync(StateHasChanged);
 
                         var itemOutputPath = useOriginalFolder 
                             ? Path.GetDirectoryName(item.FilePath) ?? ""
                             : targetOutputPath ?? "";
 
+                        // Create options specific to this item (use item's OCR engine if set)
+                        var itemOptions = new MarkBridge.Services.ConversionOptions
+                        {
+                            EnableOcr = enableOcr,
+                            ForceFullPageOcr = forceFullPageOcr,
+                            ImageExportMode = imageExportMode,
+                            UseEasyOcr = item.OcrEngine == "easyocr" || (string.IsNullOrEmpty(item.OcrEngine) && useEasyOcr),
+                            UseRapidOcr = item.OcrEngine == "rapidocr" || (string.IsNullOrEmpty(item.OcrEngine) && useRapidOcr),
+                            OutputOverwriteMode = outputOverwriteMode
+                        };
+
                         var result = await ConversionSvc.ConvertFileAsync(
                             item.FilePath,
                             itemOutputPath,
                             engine.Value,
-                            options,
+                            itemOptions,
                             cancellationTokenSource.Token,
                             msg => System.Diagnostics.Debug.WriteLine(msg));
 
@@ -621,6 +831,8 @@
         }
         finally
         {
+            // Stop the elapsed time timer
+            StopElapsedTimeTimer();
             isConverting = false;
             cancellationTokenSource?.Dispose();
             cancellationTokenSource = null;
@@ -679,14 +891,37 @@
         MarkBridge.Services.ConversionEngine.MarkItDown => "bg-warning text-dark",
         MarkBridge.Services.ConversionEngine.Docling => "bg-danger",
         MarkBridge.Services.ConversionEngine.DoclingGpu => "bg-success",
-        MarkBridge.Services.ConversionEngine.PaddleOcr => "bg-info text-dark",
+        MarkBridge.Services.ConversionEngine.PaddleOcrCpu => "bg-info text-dark",
+        MarkBridge.Services.ConversionEngine.PaddleOcrGpu => "bg-info",
         _ => "bg-secondary"
     };
 
     #endregion
 
+    #region Elapsed Time Timer
+    
+    private System.Threading.Timer? _elapsedTimeTimer;
+    
+    private void StartElapsedTimeTimer()
+    {
+        _elapsedTimeTimer?.Dispose();
+        _elapsedTimeTimer = new System.Threading.Timer(_ =>
+        {
+            InvokeAsync(StateHasChanged);
+        }, null, TimeSpan.Zero, TimeSpan.FromSeconds(1));
+    }
+    
+    private void StopElapsedTimeTimer()
+    {
+        _elapsedTimeTimer?.Dispose();
+        _elapsedTimeTimer = null;
+    }
+    
+    #endregion
+
     public void Dispose()
     {
+        StopElapsedTimeTimer();
         if (_stateHandler != null)
         {
             AppState.OnChange -= _stateHandler;

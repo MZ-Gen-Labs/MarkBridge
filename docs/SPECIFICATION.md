@@ -69,42 +69,60 @@ MarkBridgeは、Microsoft製「MarkItDown」ライブラリおよびDoclingを�
 | エンジン | 説明 | 出力サフィックス |
 |----------|------|------------------|
 | MarkItDown | 標準、高速、軽量 | `_it.md` |
-| Docling (CPU) | 高度PDF解析、OCR対応 | `_dl.md` |
-| Docling (GPU) | GPU高速処理（CUDA必須） | `_dlc.md` |
+| Docling (CPU) | 高度PDF解析、OCR対応 | `_dlc.md` |
+| Docling (GPU) | GPU高速処理（CUDA必須） | `_dlg.md` |
+| PaddleOCR (CPU) | 表・レイアウト解析特化（PP-Structure） | `_pdc.md` |
+| PaddleOCR (GPU) | CUDA 12.9対応GPU版 | `_pdg.md` |
 
 - 1つ以上のエンジン選択必須
 - 複数選択時は各エンジンで並列変換
 
-> **注意:** Docling (GPU)使用には事前にCUDA版PyTorchのインストールが必要。インストール後はアプリの再起動が必要。
+> **注意:** GPU版エンジン使用には事前にCUDA版パッケージのインストールが必要。
+
+#### 拡張子命名規則
+
+```
+ファイル名_[エンジン][c/g][e/r].md
+```
+
+| 記号 | 意味 |
+|------|------|
+| `c` | CPU版 |
+| `g` | GPU版 |
+| `e` | EasyOCR使用 |
+| `r` | RapidOCR使用 |
+
+**Docling + OCRエンジンの例:**
+- `_dlce.md` = Docling CPU + EasyOCR
+- `_dlcr.md` = Docling CPU + RapidOCR
+- `_dlge.md` = Docling GPU + EasyOCR
+- `_dlgr.md` = Docling GPU + RapidOCR
 
 #### エンジンオプション（Docling選択時のみ有効）
 
-- Enable OCR: スキャンPDF用文字認識（EasyOCRを使用）
-  - Force Full Page OCR: ページ全体をOCR処理（混在コンテンツの精度向上）
-- Image Export: 画像エクスポートモード
+- **Enable OCR**: スキャンPDF用文字認識
+  - **Force OCR**: 全ページに強制的にOCR処理を適用（`--force-ocr`）
+- **OCR Engine**: 下記から選択（両方選択で2つのキューアイテム作成）
+  - EasyOCR (GPU, 80+ languages) - 深層学習ベース高精度
+  - RapidOCR (faster, lightweight) - 軽量高速
+- **Image Export**: 画像エクスポートモード
   - None: 画像なし（プレースホルダーのみ）
   - Embedded: Base64でMarkdown内に埋め込み
   - Files: 外部ファイルとして保存（サブフォルダ作成）
 
 #### OCRエンジン仕様
 
-DoclingのOCRにはEasyOCRを採用。日本語と英語を同時認識（`--ocr-lang ja,en`）。
+Doclingでは2種類のOCRエンジンを選択可能。日本語と英語を同時認識（`--ocr-lang ja,en`）。
 
-| エンジン | 精度 | 速度 | インストール | GPU対応 | ライセンス |
-|----------|------|------|--------------|---------|------------|
-| **EasyOCR** ✅採用 | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | Python完結 | ✅ CUDA対応 | Apache 2.0 |
-| Tesseract | ⭐⭐⭐ | ⭐⭐⭐ | 外部必要 | ❌ CPU only | Apache 2.0 |
-| RapidOCR | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ | Python完結 | 部分的 | Apache 2.0 |
+| エンジン | 精度 | 速度 | GPU対応 | 特徴 |
+|----------|------|------|---------|------|
+| **EasyOCR** | ⭐⭐⭐⭐ | ⭐⭐⭐ | ✅ CUDA | 深層学習ベース、80言語以上 |
+| **RapidOCR** | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ | 部分的 | 軽量高速、PaddleOCRベース |
 
-**EasyOCR採用理由:**
-- 追加の外部インストール不要（Tesseractと違い）
-- GPU加速対応で高速処理
-- 深層学習ベースでノイズ・手書き・複雑レイアウトに強い
-- 日本語を含む80言語以上をサポート
-- Apache 2.0ライセンスで商用利用可能
+> **両方選択時の動作:** EasyOCRとRapidOCRの両方をチェックすると、同一ファイルに対して2つの変換キューアイテムが作成され、それぞれのOCRエンジンで処理される。
 
-**Force Full Page OCR:**
-テキストと画像が混在するPDFで、表やグラフが画像として埋め込まれている場合に有効。ページ全体を画像として扱いOCR処理を行うことで、通常のハイブリッド処理では認識できない画像内のテキストも抽出可能。処理時間は長くなるが精度が向上する。
+**Force OCR:**
+全ページに対して強制的にOCR処理を適用。スキャンPDFや画像埋め込みPDFに有効。処理時間は長くなるが精度向上。
 
 **インストール方法:**
 Settings画面で「Install EasyOCR」ボタンをクリック（`docling[easyocr]`として自動インストール）

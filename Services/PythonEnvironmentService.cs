@@ -336,6 +336,27 @@ public class PythonEnvironmentService
     }
 
     /// <summary>
+    /// Check if RapidOCR is installed (alternative OCR engine for Docling)
+    /// </summary>
+    public async Task<(bool installed, string? version)> CheckRapidOcrAsync(string venvPath)
+    {
+        // The package is installed as 'rapidocr' (not rapidocr-onnxruntime)
+        return await CheckPackageAsync(venvPath, "rapidocr");
+    }
+
+    /// <summary>
+    /// Install RapidOCR for Docling (alternative to EasyOCR - faster, lightweight)
+    /// </summary>
+    public async Task<(bool success, string message)> InstallRapidOcrAsync(string venvPath, Action<string>? onProgress = null)
+    {
+        onProgress?.Invoke("Installing RapidOCR for Docling...");
+        var result = await RunPipCommandAsync(GetVenvPythonPath(venvPath), "install \"docling[rapidocr]\"", onProgress);
+        return result.exitCode == 0
+            ? (true, "RapidOCR installed successfully.")
+            : (false, $"Installation failed: {result.error}");
+    }
+
+    /// <summary>
     /// Check if PaddleOCR is installed
     /// </summary>
     public async Task<(bool installed, string? version)> CheckPaddleOcrAsync(string venvPath)
@@ -344,9 +365,48 @@ public class PythonEnvironmentService
     }
 
     /// <summary>
-    /// Install PaddleOCR
+    /// Check if PaddlePaddle GPU is installed
     /// </summary>
-    public async Task<(bool success, string message)> InstallPaddleOcrAsync(string venvPath, Action<string>? onProgress = null)
+    public async Task<(bool installed, string? version)> CheckPaddleGpuAsync(string venvPath)
+    {
+        return await CheckPackageAsync(venvPath, "paddlepaddle-gpu");
+    }
+
+    /// <summary>
+    /// Check if PaddlePaddle CPU is installed
+    /// </summary>
+    public async Task<(bool installed, string? version)> CheckPaddleCpuAsync(string venvPath)
+    {
+        return await CheckPackageAsync(venvPath, "paddlepaddle");
+    }
+
+    /// <summary>
+    /// Install PaddleOCR with CPU-only PaddlePaddle (no GPU required)
+    /// </summary>
+    public async Task<(bool success, string message)> InstallPaddleOcrCpuAsync(string venvPath, Action<string>? onProgress = null)
+    {
+        onProgress?.Invoke("Installing PaddlePaddle (CPU only)...");
+        // 1. Install CPU-only PaddlePaddle
+        var resultCpu = await RunPipCommandAsync(GetVenvPythonPath(venvPath), "install paddlepaddle", onProgress);
+        
+        if (resultCpu.exitCode != 0)
+        {
+             return (false, $"PaddlePaddle installation failed: {resultCpu.error}");
+        }
+
+        onProgress?.Invoke("Installing PaddleOCR and dependencies...");
+        // 2. Install generic packages from standard PyPI
+        var resultLibs = await RunPipCommandAsync(GetVenvPythonPath(venvPath), "install paddleocr opencv-python-headless \"paddlex[ocr]\" pymupdf", onProgress);
+
+        return resultLibs.exitCode == 0
+            ? (true, "PaddleOCR (CPU) installed successfully.")
+            : (false, $"Dependency installation failed: {resultLibs.error}");
+    }
+
+    /// <summary>
+    /// Install PaddleOCR with GPU-accelerated PaddlePaddle (CUDA 12.9)
+    /// </summary>
+    public async Task<(bool success, string message)> InstallPaddleOcrGpuAsync(string venvPath, Action<string>? onProgress = null)
     {
         onProgress?.Invoke("Installing PaddlePaddle GPU (CUDA 12.9)...");
         // 1. Install GPU engine specifically from the CUDA 12.9 index
@@ -362,7 +422,7 @@ public class PythonEnvironmentService
         var resultLibs = await RunPipCommandAsync(GetVenvPythonPath(venvPath), "install paddleocr opencv-python-headless \"paddlex[ocr]\" pymupdf", onProgress);
 
         return resultLibs.exitCode == 0
-            ? (true, "PaddleOCR installed successfully.")
+            ? (true, "PaddleOCR (GPU) installed successfully.")
             : (false, $"Dependency installation failed: {resultLibs.error}");
     }
 
@@ -403,6 +463,84 @@ public class PythonEnvironmentService
                 : (false, $"Failed to install: {result.error}");
         }
     }
+
+    #endregion
+
+    #region Package Uninstall
+
+    /// <summary>
+    /// Uninstall MarkItDown
+    /// </summary>
+    public async Task<(bool success, string message)> UninstallMarkItDownAsync(string venvPath, Action<string>? onProgress = null)
+    {
+        onProgress?.Invoke("Uninstalling MarkItDown...");
+        var result = await RunPipCommandAsync(GetVenvPythonPath(venvPath), "uninstall markitdown -y", onProgress);
+        return result.exitCode == 0
+            ? (true, "MarkItDown uninstalled successfully.")
+            : (false, $"Uninstall failed: {result.error}");
+    }
+
+    /// <summary>
+    /// Uninstall Docling (Warning: This will disable OCR functionality)
+    /// </summary>
+    public async Task<(bool success, string message)> UninstallDoclingAsync(string venvPath, Action<string>? onProgress = null)
+    {
+        onProgress?.Invoke("Uninstalling Docling...");
+        var result = await RunPipCommandAsync(GetVenvPythonPath(venvPath), "uninstall docling -y", onProgress);
+        return result.exitCode == 0
+            ? (true, "Docling uninstalled successfully.")
+            : (false, $"Uninstall failed: {result.error}");
+    }
+
+    /// <summary>
+    /// Uninstall EasyOCR
+    /// </summary>
+    public async Task<(bool success, string message)> UninstallEasyOcrAsync(string venvPath, Action<string>? onProgress = null)
+    {
+        onProgress?.Invoke("Uninstalling EasyOCR...");
+        var result = await RunPipCommandAsync(GetVenvPythonPath(venvPath), "uninstall easyocr -y", onProgress);
+        return result.exitCode == 0
+            ? (true, "EasyOCR uninstalled successfully.")
+            : (false, $"Uninstall failed: {result.error}");
+    }
+
+    /// <summary>
+    /// Uninstall RapidOCR
+    /// </summary>
+    public async Task<(bool success, string message)> UninstallRapidOcrAsync(string venvPath, Action<string>? onProgress = null)
+    {
+        onProgress?.Invoke("Uninstalling RapidOCR...");
+        var result = await RunPipCommandAsync(GetVenvPythonPath(venvPath), "uninstall rapidocr -y", onProgress);
+        return result.exitCode == 0
+            ? (true, "RapidOCR uninstalled successfully.")
+            : (false, $"Uninstall failed: {result.error}");
+    }
+
+    /// <summary>
+    /// Uninstall PaddleOCR (CPU version)
+    /// </summary>
+    public async Task<(bool success, string message)> UninstallPaddleOcrCpuAsync(string venvPath, Action<string>? onProgress = null)
+    {
+        onProgress?.Invoke("Uninstalling PaddleOCR (CPU)...");
+        var result = await RunPipCommandAsync(GetVenvPythonPath(venvPath), "uninstall paddleocr paddlepaddle -y", onProgress);
+        return result.exitCode == 0
+            ? (true, "PaddleOCR (CPU) uninstalled successfully.")
+            : (false, $"Uninstall failed: {result.error}");
+    }
+
+    /// <summary>
+    /// Uninstall PaddleOCR (GPU version)
+    /// </summary>
+    public async Task<(bool success, string message)> UninstallPaddleOcrGpuAsync(string venvPath, Action<string>? onProgress = null)
+    {
+        onProgress?.Invoke("Uninstalling PaddleOCR (GPU)...");
+        var result = await RunPipCommandAsync(GetVenvPythonPath(venvPath), "uninstall paddleocr paddlepaddle-gpu -y", onProgress);
+        return result.exitCode == 0
+            ? (true, "PaddleOCR (GPU) uninstalled successfully.")
+            : (false, $"Uninstall failed: {result.error}");
+    }
+
+    #endregion
 
     private async Task<(bool installed, string? version)> CheckPackageAsync(string venvPath, string packageName)
     {
@@ -504,8 +642,6 @@ public class PythonEnvironmentService
             return string.Empty;
         }
     }
-
-    #endregion
 
     #region Python Install Manager
 

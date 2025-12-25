@@ -113,16 +113,43 @@ public class AppStateService
         set { _settings.UseDoclingGpu = value; NotifyStateChanged(); }
     }
 
-    public bool UsePaddleOcr
+    public bool UsePaddleOcrCpu
     {
-        get => _settings.UsePaddleOcr;
-        set { _settings.UsePaddleOcr = value; NotifyStateChanged(); }
+        get => _settings.UsePaddleOcrCpu;
+        set { _settings.UsePaddleOcrCpu = value; NotifyStateChanged(); }
     }
 
     public bool UsePaddleOcrGpu
     {
         get => _settings.UsePaddleOcrGpu;
         set { _settings.UsePaddleOcrGpu = value; NotifyStateChanged(); }
+    }
+
+    /// <summary>
+    /// Use EasyOCR for Docling OCR
+    /// </summary>
+    public bool UseEasyOcr
+    {
+        get => _settings.UseEasyOcr;
+        set { _settings.UseEasyOcr = value; NotifyStateChanged(); }
+    }
+
+    /// <summary>
+    /// Use RapidOCR for Docling OCR
+    /// </summary>
+    public bool UseRapidOcr
+    {
+        get => _settings.UseRapidOcr;
+        set { _settings.UseRapidOcr = value; NotifyStateChanged(); }
+    }
+
+    /// <summary>
+    /// Output file overwrite mode
+    /// </summary>
+    public OutputOverwriteMode OutputOverwriteMode
+    {
+        get => _settings.OutputOverwriteMode;
+        set { _settings.OutputOverwriteMode = value; NotifyStateChanged(); }
     }
 
     #endregion
@@ -259,8 +286,28 @@ public class AppSettings
     public bool UseMarkItDown { get; set; } = true;
     public bool UseDocling { get; set; } = false;
     public bool UseDoclingGpu { get; set; } = false;
-    public bool UsePaddleOcr { get; set; } = false;
+    public bool UsePaddleOcrCpu { get; set; } = false;
     public bool UsePaddleOcrGpu { get; set; } = false;
+    
+    // Docling OCR engine selection (multiple selection support)
+    public bool UseEasyOcr { get; set; } = true;
+    public bool UseRapidOcr { get; set; } = false;
+    
+    // Output file handling
+    public OutputOverwriteMode OutputOverwriteMode { get; set; } = OutputOverwriteMode.Overwrite;
+}
+
+/// <summary>
+/// Output file overwrite mode
+/// </summary>
+public enum OutputOverwriteMode
+{
+    /// <summary>Overwrite existing file</summary>
+    Overwrite,
+    /// <summary>Skip if file exists</summary>
+    Skip,
+    /// <summary>Save with new name (e.g., _1, _2)</summary>
+    Rename
 }
 
 public enum ConversionEngine
@@ -268,7 +315,8 @@ public enum ConversionEngine
     MarkItDown,
     Docling,
     DoclingGpu,
-    PaddleOcr
+    PaddleOcrCpu,
+    PaddleOcrGpu
 }
 
 /// <summary>
@@ -296,31 +344,86 @@ public class QueueItem
     public ConversionStatus Status { get; set; } = ConversionStatus.Queued;
     public string? ErrorMessage { get; set; }
     public ConversionEngine? Engine { get; set; }
+    public string? OcrEngine { get; set; }  // "easyocr" or "rapidocr" for Docling
     public TimeSpan? ElapsedTime { get; set; }
+    public DateTime? StartTime { get; set; }
     
-    public string EngineName => Engine switch
+    public string EngineName 
     {
-        ConversionEngine.MarkItDown => "MarkItDown",
-        ConversionEngine.Docling => "Docling (CPU)",
-        ConversionEngine.DoclingGpu => "Docling (GPU)",
-        ConversionEngine.PaddleOcr => "PaddleOCR",
-        _ => "Auto"
-    };
+        get
+        {
+            var baseName = Engine switch
+            {
+                ConversionEngine.MarkItDown => "MarkItDown",
+                ConversionEngine.Docling => "Docling (CPU)",
+                ConversionEngine.DoclingGpu => "Docling (GPU)",
+                ConversionEngine.PaddleOcrCpu => "PaddleOCR (CPU)",
+                ConversionEngine.PaddleOcrGpu => "PaddleOCR (GPU)",
+                _ => "Auto"
+            };
+            
+            // Append OCR engine info for Docling
+            if ((Engine == ConversionEngine.Docling || Engine == ConversionEngine.DoclingGpu) && !string.IsNullOrEmpty(OcrEngine))
+            {
+                var ocrName = OcrEngine == "easyocr" ? "EasyOCR" : "RapidOCR";
+                return $"{baseName} - {ocrName}";
+            }
+            
+            return baseName;
+        }
+    }
     
-    public string OutputSuffix => Engine switch
+    public string OutputSuffix
     {
-        ConversionEngine.MarkItDown => "_it.md",
-        ConversionEngine.Docling => "_dl.md",
-        ConversionEngine.DoclingGpu => "_dlc.md",
-        ConversionEngine.PaddleOcr => "_pd.md",
-        _ => ".md"
-    };
+        get
+        {
+            // Naming convention: _[engine][c/g for CPU/GPU][e/r for EasyOCR/RapidOCR]
+            // Examples:
+            //   MarkItDown     -> _it.md
+            //   Docling CPU    -> _dlc.md (base) or _dlce.md / _dlcr.md (with OCR)
+            //   Docling GPU    -> _dlg.md (base) or _dlge.md / _dlgr.md (with OCR)
+            //   PaddleOCR CPU  -> _pdc.md
+            //   PaddleOCR GPU  -> _pdg.md
+            
+            var baseSuffix = Engine switch
+            {
+                ConversionEngine.MarkItDown => "_it",
+                ConversionEngine.Docling => "_dlc",      // Docling CPU
+                ConversionEngine.DoclingGpu => "_dlg",   // Docling GPU
+                ConversionEngine.PaddleOcrCpu => "_pdc", // PaddleOCR CPU
+                ConversionEngine.PaddleOcrGpu => "_pdg", // PaddleOCR GPU
+                _ => ""
+            };
+            
+            // Append OCR engine suffix for Docling (e = EasyOCR, r = RapidOCR)
+            if ((Engine == ConversionEngine.Docling || Engine == ConversionEngine.DoclingGpu) && !string.IsNullOrEmpty(OcrEngine))
+            {
+                var ocrSuffix = OcrEngine == "easyocr" ? "e" : "r";
+                return $"{baseSuffix}{ocrSuffix}.md";
+            }
+            
+            return $"{baseSuffix}.md";
+        }
+    }
     
-    public string ElapsedTimeText => ElapsedTime.HasValue 
-        ? ElapsedTime.Value.TotalSeconds < 60 
-            ? $"{ElapsedTime.Value.TotalSeconds:F1}s"
-            : $"{(int)ElapsedTime.Value.TotalMinutes}m {ElapsedTime.Value.Seconds}s"
-        : "";
+    /// <summary>
+    /// Gets elapsed time text - shows live elapsed for Converting status, final for Completed
+    /// </summary>
+    public string ElapsedTimeText 
+    {
+        get
+        {
+            var elapsed = Status == ConversionStatus.Converting && StartTime.HasValue
+                ? DateTime.Now - StartTime.Value
+                : ElapsedTime;
+            
+            if (!elapsed.HasValue) return "";
+            
+            return elapsed.Value.TotalSeconds < 60 
+                ? $"{elapsed.Value.TotalSeconds:F1}s"
+                : $"{(int)elapsed.Value.TotalMinutes}m {elapsed.Value.Seconds}s";
+        }
+    }
 }
 
 public enum ConversionStatus

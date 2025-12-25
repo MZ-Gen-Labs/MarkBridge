@@ -41,8 +41,8 @@ public class ConversionService
                 };
             }
 
-            // Determine output filename based on engine
-            var outputFileName = GetOutputFileName(Path.GetFileName(inputPath), engine);
+            // Determine output filename based on engine and options
+            var outputFileName = GetOutputFileName(Path.GetFileName(inputPath), engine, options);
             var fullOutputPath = Path.Combine(outputPath, outputFileName);
 
             // Ensure output directory exists
@@ -74,8 +74,11 @@ public class ConversionService
                     result = doclingResult.output;
                     doclingOutputPath = doclingResult.outputFilePath;
                     break;
-                case ConversionEngine.PaddleOcr:
-                    result = await RunPaddleOcrAsync(pythonPath, inputPath, fullOutputPath, _appState.UsePaddleOcrGpu, cancellationToken, onProgress);
+                case ConversionEngine.PaddleOcrCpu:
+                    result = await RunPaddleOcrAsync(pythonPath, inputPath, fullOutputPath, false, cancellationToken, onProgress);
+                    break;
+                case ConversionEngine.PaddleOcrGpu:
+                    result = await RunPaddleOcrAsync(pythonPath, inputPath, fullOutputPath, true, cancellationToken, onProgress);
                     break;
                 default:
                     return new ConversionResult
@@ -135,17 +138,35 @@ public class ConversionService
         }
     }
 
-    private string GetOutputFileName(string inputFileName, ConversionEngine engine)
+    private string GetOutputFileName(string inputFileName, ConversionEngine engine, ConversionOptions? options)
     {
         var baseName = Path.GetFileNameWithoutExtension(inputFileName);
+        
+        // Naming convention: _[engine][c/g for CPU/GPU][e/r for EasyOCR/RapidOCR]
         var suffix = engine switch
         {
             ConversionEngine.MarkItDown => "_it",
-            ConversionEngine.Docling => "_dl",
-            ConversionEngine.DoclingGpu => "_dlc",
-            ConversionEngine.PaddleOcr => "_pd",
+            ConversionEngine.Docling => "_dlc",      // Docling CPU
+            ConversionEngine.DoclingGpu => "_dlg",   // Docling GPU
+            ConversionEngine.PaddleOcrCpu => "_pdc", // PaddleOCR CPU
+            ConversionEngine.PaddleOcrGpu => "_pdg", // PaddleOCR GPU
             _ => ""
         };
+        
+        // Append OCR engine suffix for Docling (e = EasyOCR, r = RapidOCR)
+        if (engine == ConversionEngine.Docling || engine == ConversionEngine.DoclingGpu)
+        {
+            if (options?.UseEasyOcr == true && options?.UseRapidOcr != true)
+            {
+                suffix += "e";
+            }
+            else if (options?.UseRapidOcr == true && options?.UseEasyOcr != true)
+            {
+                suffix += "r";
+            }
+            // If both or neither, don't add OCR suffix
+        }
+        
         return $"{baseName}{suffix}.md";
     }
 
@@ -228,13 +249,14 @@ public class ConversionService
 
             if (options.EnableOcr)
             {
-                // Use EasyOCR with Japanese and English support
-                sb.Append(" --ocr-engine easyocr --ocr-lang ja,en");
+                // Determine OCR engine - if both selected, use EasyOCR (caller should create separate queue items)
+                var ocrEngine = options.UseEasyOcr ? "easyocr" : (options.UseRapidOcr ? "rapidocr" : "easyocr");
+                sb.Append($" --ocr-engine {ocrEngine} --ocr-lang ja,en");
                 
-                // Force full page OCR for better accuracy on mixed content
+                // Force OCR for all pages (useful for scanned documents)
                 if (options.ForceFullPageOcr)
                 {
-                    sb.Append(" --force-full-page-ocr");
+                    sb.Append(" --force-ocr");
                 }
             }
 
@@ -476,5 +498,20 @@ public class ConversionOptions
     public bool ForceFullPageOcr { get; set; }
     public ImageExportMode ImageExportMode { get; set; } = ImageExportMode.None;
     public int MaxRetries { get; set; } = 5;
+    
+    /// <summary>
+    /// Use EasyOCR for Docling OCR
+    /// </summary>
+    public bool UseEasyOcr { get; set; }
+    
+    /// <summary>
+    /// Use RapidOCR for Docling OCR
+    /// </summary>
+    public bool UseRapidOcr { get; set; }
+    
+    /// <summary>
+    /// Output file overwrite mode
+    /// </summary>
+    public OutputOverwriteMode OutputOverwriteMode { get; set; } = OutputOverwriteMode.Overwrite;
 }
 

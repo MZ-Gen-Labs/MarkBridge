@@ -220,6 +220,25 @@
             }
             else
             {
+                <!-- Install All Button -->
+                <div class="d-flex align-items-center justify-content-between mb-3 pb-3 border-bottom">
+                    <div>
+                        <strong>Install All</strong>
+                        <span class="text-muted ms-2">Install all required packages at once</span>
+                    </div>
+                    <button class="btn btn-success" @onclick="InstallAllPackages" disabled="@isInstalling">
+                        @if (isInstalling && installingPackage == "all")
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                            <span>Installing...</span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-download me-1"></i>
+                            <span>Install All Packages</span>
+                        }
+                    </button>
+                </div>
                 <!-- MarkItDown -->
                 <div class="d-flex align-items-center justify-content-between mb-3 pb-3 border-bottom">
                     <div>
@@ -230,15 +249,23 @@
                             <span class="badge bg-success ms-2">v@(markitdownVersion)</span>
                         }
                     </div>
-                    <button class="btn @(markitdownInstalled ? "btn-outline-secondary" : "btn-primary")" 
-                            @onclick="InstallMarkItDown" disabled="@isInstalling">
-                        @if (isInstalling && installingPackage == "markitdown")
+                    <div class="btn-group">
+                        <button class="btn @(markitdownInstalled ? "btn-outline-secondary" : "btn-primary")" 
+                                @onclick="InstallMarkItDown" disabled="@isInstalling">
+                            @if (isInstalling && installingPackage == "markitdown")
+                            {
+                                <span class="spinner-border spinner-border-sm me-1"></span>
+                            }
+                            <i class="bi @(markitdownInstalled ? "bi-arrow-clockwise" : "bi-download") me-1"></i>
+                            @(markitdownInstalled ? "Update" : "Install")
+                        </button>
+                        @if (markitdownInstalled)
                         {
-                            <span class="spinner-border spinner-border-sm me-1"></span>
+                            <button class="btn btn-outline-danger" @onclick="UninstallMarkItDown" disabled="@isInstalling">
+                                <i class="bi bi-trash me-1"></i>Delete
+                            </button>
                         }
-                        <i class="bi @(markitdownInstalled ? "bi-arrow-clockwise" : "bi-download") me-1"></i>
-                        @(markitdownInstalled ? "Update" : "Install") MarkItDown
-                    </button>
+                    </div>
                 </div>
 
                 <!-- Docling -->
@@ -251,64 +278,189 @@
                             <span class="badge bg-success ms-2">v@(doclingVersion)</span>
                         }
                     </div>
-                    <button class="btn @(doclingInstalled ? "btn-outline-secondary" : "btn-primary")" 
-                            @onclick="InstallDocling" disabled="@isInstalling">
-                        @if (isInstalling && installingPackage == "docling")
+                    <div class="btn-group">
+                        <button class="btn @(doclingInstalled ? "btn-outline-secondary" : "btn-primary")" 
+                                @onclick="InstallDocling" disabled="@isInstalling">
+                            @if (isInstalling && installingPackage == "docling")
+                            {
+                                <span class="spinner-border spinner-border-sm me-1"></span>
+                            }
+                            <i class="bi @(doclingInstalled ? "bi-arrow-clockwise" : "bi-download") me-1"></i>
+                            @(doclingInstalled ? "Update" : "Install")
+                        </button>
+                        @if (doclingInstalled)
                         {
-                            <span class="spinner-border spinner-border-sm me-1"></span>
+                            <button class="btn btn-outline-danger" @onclick="UninstallDocling" disabled="@isInstalling">
+                                <i class="bi bi-trash me-1"></i>Delete
+                            </button>
                         }
-                        <i class="bi @(doclingInstalled ? "bi-arrow-clockwise" : "bi-download") me-1"></i>
-                        @(doclingInstalled ? "Update" : "Install") Docling
-                    </button>
+                    </div>
                 </div>
 
-                <!-- EasyOCR (for OCR support) -->
-                <div class="d-flex align-items-center justify-content-between mb-3 pb-3 border-bottom">
+                <!-- Docling OCR Engines Section -->
+                <div class="mb-3">
+                    <h6 class="text-muted mb-2"><i class="bi bi-eye me-1"></i>Docling OCR Engines</h6>
+                    <p class="text-muted small mb-2">These OCR engines enable scanned PDF support in Docling:</p>
+                </div>
+
+                <!-- EasyOCR (for Docling OCR) -->
+                <div class="d-flex align-items-center justify-content-between mb-3 pb-3 border-bottom ps-3">
                     <div>
                         <strong>EasyOCR</strong>
-                        <span class="text-muted ms-2">OCR support for scanned PDFs (required for Enable OCR)</span>
+                        <span class="text-muted ms-2">GPU accelerated, 80+ languages (recommended)</span>
                         @if (!string.IsNullOrEmpty(easyocrVersion))
                         {
                             <span class="badge bg-success ms-2">v@(easyocrVersion)</span>
                         }
                     </div>
-                    <button class="btn @(easyocrInstalled ? "btn-outline-secondary" : "btn-primary")" 
-                            @onclick="InstallEasyOcr" disabled="@isInstalling">
-                        @if (isInstalling && installingPackage == "easyocr")
+                    <div class="btn-group">
+                        <button class="btn @(easyocrInstalled ? "btn-outline-secondary" : "btn-primary")" 
+                                @onclick="InstallEasyOcr" disabled="@isInstalling">
+                            @if (isInstalling && installingPackage == "easyocr")
+                            {
+                                <span class="spinner-border spinner-border-sm me-1"></span>
+                            }
+                            <i class="bi @(easyocrInstalled ? "bi-arrow-clockwise" : "bi-download") me-1"></i>
+                            @(easyocrInstalled ? "Update" : "Install")
+                        </button>
+                        @if (easyocrInstalled)
                         {
-                            <span class="spinner-border spinner-border-sm me-1"></span>
-                        }
-                        <i class="bi @(easyocrInstalled ? "bi-arrow-clockwise" : "bi-download") me-1"></i>
-                        @(easyocrInstalled ? "Update" : "Install") EasyOCR
-                    </button>
-                </div>
-
-                <!-- PaddleOCR -->
-                <div class="d-flex align-items-center justify-content-between mb-3 pb-3 border-bottom">
-                    <div>
-                        <strong>PaddleOCR</strong>
-                        <span class="text-muted ms-2">Advanced layout analysis and table recognition (PP-Structure)</span>
-                        @if (!string.IsNullOrEmpty(paddleOcrVersion))
-                        {
-                            <span class="badge bg-success ms-2">v@(paddleOcrVersion)</span>
+                            <button class="btn btn-outline-danger" @onclick="UninstallEasyOcr" disabled="@isInstalling">
+                                <i class="bi bi-trash me-1"></i>Delete
+                            </button>
                         }
                     </div>
-                    <button class="btn @(paddleOcrInstalled ? "btn-outline-secondary" : "btn-primary")" 
-                            @onclick="InstallPaddleOcr" disabled="@isInstalling">
-                        @if (isInstalling && installingPackage == "paddleocr")
-                        {
-                            <span class="spinner-border spinner-border-sm me-1"></span>
-                        }
-                        <i class="bi @(paddleOcrInstalled ? "bi-arrow-clockwise" : "bi-download") me-1"></i>
-                        @(paddleOcrInstalled ? "Update" : "Install") PaddleOCR
-                    </button>
                 </div>
 
-                <!-- CUDA Support -->
-                <div class="d-flex align-items-center justify-content-between">
+                <!-- RapidOCR (for Docling OCR) -->
+                <div class="d-flex align-items-center justify-content-between mb-3 pb-3 border-bottom ps-3">
                     <div>
-                        <strong>NVIDIA CUDA Support</strong>
-                        <span class="text-muted ms-2">GPU acceleration for Docling</span>
+                        <strong>RapidOCR</strong>
+                        <span class="text-muted ms-2">Faster, lightweight (alternative to EasyOCR)</span>
+                        @if (!string.IsNullOrEmpty(rapidocrVersion))
+                        {
+                            <span class="badge bg-success ms-2">v@(rapidocrVersion)</span>
+                        }
+                    </div>
+                    <div class="btn-group">
+                        <button class="btn @(rapidocrInstalled ? "btn-outline-secondary" : "btn-primary")" 
+                                @onclick="InstallRapidOcr" disabled="@isInstalling">
+                            @if (isInstalling && installingPackage == "rapidocr")
+                            {
+                                <span class="spinner-border spinner-border-sm me-1"></span>
+                            }
+                            <i class="bi @(rapidocrInstalled ? "bi-arrow-clockwise" : "bi-download") me-1"></i>
+                            @(rapidocrInstalled ? "Update" : "Install")
+                        </button>
+                        @if (rapidocrInstalled)
+                        {
+                            <button class="btn btn-outline-danger" @onclick="UninstallRapidOcr" disabled="@isInstalling">
+                                <i class="bi bi-trash me-1"></i>Delete
+                            </button>
+                        }
+                    </div>
+                </div>
+
+                <!-- PaddleOCR Section -->
+                <div class="mb-3 mt-4">
+                    <h6 class="text-muted mb-2"><i class="bi bi-grid-3x3 me-1"></i>PaddleOCR (PP-Structure)</h6>
+                    <p class="text-muted small mb-2">Advanced layout analysis and table recognition. CPU and GPU versions are mutually exclusive.</p>
+                </div>
+
+                <div class="ps-3 mb-3 pb-3 border-bottom">
+                    <!-- Current Installation Status -->
+                    @if (paddleOcrInstalled)
+                    {
+                        <div class="alert alert-info py-2 mb-3">
+                            <i class="bi bi-info-circle me-2"></i>
+                            <strong>Installed:</strong> PaddleOCR v@(paddleOcrVersion) 
+                            @if (paddleGpuInstalled)
+                            {
+                                <span class="badge bg-success ms-2">GPU (CUDA 12.9)</span>
+                                <span class="text-muted small ms-2">- Supports both GPU and CPU processing</span>
+                            }
+                            else if (paddleCpuInstalled)
+                            {
+                                <span class="badge bg-secondary ms-2">CPU Only</span>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="alert alert-secondary py-2 mb-3">
+                            <i class="bi bi-info-circle me-2"></i>
+                            <strong>Not installed.</strong> Choose a version below:
+                            <ul class="mb-0 mt-1 small">
+                                <li><strong>CPU Only</strong> - Works on any system, no GPU required</li>
+                                <li><strong>GPU</strong> <span class="badge bg-primary">Recommended</span> - CUDA 12.9, includes CPU fallback</li>
+                            </ul>
+                        </div>
+                    }
+
+                    <!-- Action Buttons -->
+                    <div class="d-flex gap-2 justify-content-end">
+                        @if (!paddleOcrInstalled)
+                        {
+                            <button class="btn btn-primary" @onclick="InstallPaddleOcrCpu" disabled="@isInstalling">
+                                @if (isInstalling && installingPackage == "paddleocr-cpu")
+                                {
+                                    <span class="spinner-border spinner-border-sm me-1"></span>
+                                }
+                                <i class="bi bi-download me-1"></i>Install CPU Version
+                            </button>
+                            <button class="btn btn-success" @onclick="InstallPaddleOcrGpu" disabled="@isInstalling">
+                                @if (isInstalling && installingPackage == "paddleocr-gpu")
+                                {
+                                    <span class="spinner-border spinner-border-sm me-1"></span>
+                                }
+                                <i class="bi bi-download me-1"></i>Install GPU Version
+                            </button>
+                        }
+                        else if (paddleCpuInstalled && !paddleGpuInstalled)
+                        {
+                            <button class="btn btn-success" @onclick="SwitchToGpuVersion" disabled="@isInstalling">
+                                @if (isInstalling && installingPackage == "paddleocr-switch-gpu")
+                                {
+                                    <span class="spinner-border spinner-border-sm me-1"></span>
+                                }
+                                <i class="bi bi-arrow-up-circle me-1"></i>Upgrade to GPU Version
+                            </button>
+                            <button class="btn btn-outline-secondary" @onclick="InstallPaddleOcrCpu" disabled="@isInstalling">
+                                <i class="bi bi-arrow-clockwise me-1"></i>Update
+                            </button>
+                            <button class="btn btn-outline-danger" @onclick="UninstallPaddleOcr" disabled="@isInstalling">
+                                <i class="bi bi-trash me-1"></i>Delete
+                            </button>
+                        }
+                        else if (paddleGpuInstalled)
+                        {
+                            <button class="btn btn-outline-secondary" @onclick="SwitchToCpuVersion" disabled="@isInstalling">
+                                @if (isInstalling && installingPackage == "paddleocr-switch-cpu")
+                                {
+                                    <span class="spinner-border spinner-border-sm me-1"></span>
+                                }
+                                <i class="bi bi-arrow-down-circle me-1"></i>Downgrade to CPU Only
+                            </button>
+                            <button class="btn btn-outline-secondary" @onclick="InstallPaddleOcrGpu" disabled="@isInstalling">
+                                <i class="bi bi-arrow-clockwise me-1"></i>Update
+                            </button>
+                            <button class="btn btn-outline-danger" @onclick="UninstallPaddleOcr" disabled="@isInstalling">
+                                <i class="bi bi-trash me-1"></i>Delete
+                            </button>
+                        }
+                    </div>
+                </div>
+
+                <!-- CUDA Support (for Docling) -->
+                <div class="mb-3 mt-4">
+                    <h6 class="text-muted mb-2"><i class="bi bi-gpu-card me-1"></i>Docling GPU Acceleration</h6>
+                    <p class="text-muted small mb-2">PyTorch CUDA for Docling GPU mode (separate from PaddleOCR):</p>
+                </div>
+
+                <div class="d-flex align-items-center justify-content-between ps-3">
+                    <div>
+                        <strong>PyTorch CUDA</strong>
+                        <span class="text-muted ms-2">GPU acceleration for Docling (PyTorch)</span>
                         @if (cudaInstalled && !string.IsNullOrEmpty(cudaVersion))
                         {
                             <span class="badge bg-success ms-2">CUDA @cudaVersion</span>
@@ -321,7 +473,7 @@
                             {
                                 <span class="spinner-border spinner-border-sm me-1"></span>
                             }
-                            <i class="bi bi-gpu-card me-1"></i> @(cudaInstalled ? "Reinstall" : "Install") CUDA
+                            <i class="bi bi-gpu-card me-1"></i> @(cudaInstalled ? "Reinstall" : "Install") CUDA 12.4
                         </button>
                         <button class="btn btn-outline-secondary" @onclick="() => InstallCuda(true)" disabled="@isInstalling"
                                 title="For RTX 50 series (Blackwell) - requires CUDA 12.8">
@@ -441,8 +593,12 @@
     private string? doclingVersion;
     private bool easyocrInstalled = false;
     private string? easyocrVersion;
+    private bool rapidocrInstalled = false;
+    private string? rapidocrVersion;
     private bool paddleOcrInstalled = false;
     private string? paddleOcrVersion;
+    private bool paddleCpuInstalled = false;
+    private bool paddleGpuInstalled = false;
     private bool cudaInstalled = false;
     private string? torchVersion;
     private string? cudaVersion;
@@ -909,9 +1065,19 @@
         easyocrInstalled = easyocr.installed;
         easyocrVersion = easyocr.version;
 
+        var rapidocr = await PythonEnv.CheckRapidOcrAsync(venvPath);
+        rapidocrInstalled = rapidocr.installed;
+        rapidocrVersion = rapidocr.version;
+
         var paddle = await PythonEnv.CheckPaddleOcrAsync(venvPath);
         paddleOcrInstalled = paddle.installed;
         paddleOcrVersion = paddle.version;
+
+        var paddleCpu = await PythonEnv.CheckPaddleCpuAsync(venvPath);
+        paddleCpuInstalled = paddleCpu.installed;
+
+        var paddleGpu = await PythonEnv.CheckPaddleGpuAsync(venvPath);
+        paddleGpuInstalled = paddleGpu.installed;
 
         var cuda = await PythonEnv.CheckCudaAsync(venvPath);
         cudaInstalled = cuda.installed;
@@ -984,18 +1150,59 @@
         await CheckInstalledPackages();
         StateHasChanged();
     }
-
-
-
-    private async Task InstallPaddleOcr()
+    private async Task InstallRapidOcr()
     {
         isInstalling = true;
-        installingPackage = "paddleocr";
+        installingPackage = "rapidocr";
         installLog = string.Empty;
-        AppState.SetStatus("Installing PaddleOCR...", true);
+        AppState.SetStatus("Installing RapidOCR...", true);
         StateHasChanged();
 
-        var result = await Task.Run(() => PythonEnv.InstallPaddleOcrAsync(venvPath, log =>
+        var result = await Task.Run(() => PythonEnv.InstallRapidOcrAsync(venvPath, log =>
+        {
+            installLog += log + "\n";
+            InvokeAsync(StateHasChanged);
+        }));
+
+        installLog += "\n" + result.message;
+        isInstalling = false;
+        installingPackage = string.Empty;
+        AppState.SetStatus("Ready");
+        await CheckInstalledPackages();
+        StateHasChanged();
+    }
+
+    private async Task InstallPaddleOcrCpu()
+    {
+        isInstalling = true;
+        installingPackage = "paddleocr-cpu";
+        installLog = string.Empty;
+        AppState.SetStatus("Installing PaddleOCR (CPU)...", true);
+        StateHasChanged();
+
+        var result = await Task.Run(() => PythonEnv.InstallPaddleOcrCpuAsync(venvPath, log =>
+        {
+            installLog += log + "\n";
+            InvokeAsync(StateHasChanged);
+        }));
+
+        installLog += "\n" + result.message;
+        isInstalling = false;
+        installingPackage = string.Empty;
+        AppState.SetStatus("Ready");
+        await CheckInstalledPackages();
+        StateHasChanged();
+    }
+
+    private async Task InstallPaddleOcrGpu()
+    {
+        isInstalling = true;
+        installingPackage = "paddleocr-gpu";
+        installLog = string.Empty;
+        AppState.SetStatus("Installing PaddleOCR (GPU)...", true);
+        StateHasChanged();
+
+        var result = await Task.Run(() => PythonEnv.InstallPaddleOcrGpuAsync(venvPath, log =>
         {
             installLog += log + "\n";
             InvokeAsync(StateHasChanged);
@@ -1027,6 +1234,281 @@
         isInstalling = false;
         installingPackage = string.Empty;
         AppState.SetStatus("Ready");
+        StateHasChanged();
+    }
+
+    private async Task InstallAllPackages()
+    {
+        isInstalling = true;
+        installingPackage = "all";
+        installLog = string.Empty;
+        AppState.SetStatus("Installing all packages...", true);
+        StateHasChanged();
+
+        var packages = new List<(string name, Func<string, Action<string>?, Task<(bool success, string message)>> installer)>
+        {
+            ("MarkItDown", (venv, log) => PythonEnv.InstallMarkItDownAsync(venv, log)),
+            ("Docling", (venv, log) => PythonEnv.InstallDoclingAsync(venv, log)),
+            ("EasyOCR", (venv, log) => PythonEnv.InstallEasyOcrAsync(venv, log)),
+            ("RapidOCR", (venv, log) => PythonEnv.InstallRapidOcrAsync(venv, log)),
+            ("PaddleOCR (CPU)", (venv, log) => PythonEnv.InstallPaddleOcrCpuAsync(venv, log)),
+        };
+
+        int successCount = 0;
+        int failCount = 0;
+
+        foreach (var (name, installer) in packages)
+        {
+            installLog += $"\n=== Installing {name} ===\n";
+            await InvokeAsync(StateHasChanged);
+
+            var result = await Task.Run(() => installer(venvPath, log =>
+            {
+                installLog += log + "\n";
+                InvokeAsync(StateHasChanged);
+            }));
+
+            if (result.success)
+            {
+                successCount++;
+                installLog += $"✓ {name} installed successfully.\n";
+            }
+            else
+            {
+                failCount++;
+                installLog += $"✗ {name} failed: {result.message}\n";
+            }
+            await InvokeAsync(StateHasChanged);
+        }
+
+        installLog += $"\n=== Complete: {successCount} succeeded, {failCount} failed ===\n";
+        isInstalling = false;
+        installingPackage = string.Empty;
+        AppState.SetStatus("Ready");
+        await CheckInstalledPackages();
+        StateHasChanged();
+    }
+
+    #endregion
+
+    #region Package Uninstall
+
+    private async Task UninstallMarkItDown()
+    {
+        isInstalling = true;
+        installingPackage = "markitdown";
+        installLog = string.Empty;
+        AppState.SetStatus("Uninstalling MarkItDown...", true);
+        StateHasChanged();
+
+        var result = await Task.Run(() => PythonEnv.UninstallMarkItDownAsync(venvPath, log =>
+        {
+            installLog += log + "\n";
+            InvokeAsync(StateHasChanged);
+        }));
+
+        installLog += "\n" + result.message;
+        isInstalling = false;
+        installingPackage = string.Empty;
+        AppState.SetStatus("Ready");
+        await CheckInstalledPackages();
+        StateHasChanged();
+    }
+
+    private async Task UninstallDocling()
+    {
+        isInstalling = true;
+        installingPackage = "docling";
+        installLog = string.Empty;
+        AppState.SetStatus("Uninstalling Docling...", true);
+        StateHasChanged();
+
+        var result = await Task.Run(() => PythonEnv.UninstallDoclingAsync(venvPath, log =>
+        {
+            installLog += log + "\n";
+            InvokeAsync(StateHasChanged);
+        }));
+
+        installLog += "\n" + result.message;
+        isInstalling = false;
+        installingPackage = string.Empty;
+        AppState.SetStatus("Ready");
+        await CheckInstalledPackages();
+        StateHasChanged();
+    }
+
+    private async Task UninstallEasyOcr()
+    {
+        isInstalling = true;
+        installingPackage = "easyocr";
+        installLog = string.Empty;
+        AppState.SetStatus("Uninstalling EasyOCR...", true);
+        StateHasChanged();
+
+        var result = await Task.Run(() => PythonEnv.UninstallEasyOcrAsync(venvPath, log =>
+        {
+            installLog += log + "\n";
+            InvokeAsync(StateHasChanged);
+        }));
+
+        installLog += "\n" + result.message;
+        isInstalling = false;
+        installingPackage = string.Empty;
+        AppState.SetStatus("Ready");
+        await CheckInstalledPackages();
+        StateHasChanged();
+    }
+
+    private async Task UninstallRapidOcr()
+    {
+        isInstalling = true;
+        installingPackage = "rapidocr";
+        installLog = string.Empty;
+        AppState.SetStatus("Uninstalling RapidOCR...", true);
+        StateHasChanged();
+
+        var result = await Task.Run(() => PythonEnv.UninstallRapidOcrAsync(venvPath, log =>
+        {
+            installLog += log + "\n";
+            InvokeAsync(StateHasChanged);
+        }));
+
+        installLog += "\n" + result.message;
+        isInstalling = false;
+        installingPackage = string.Empty;
+        AppState.SetStatus("Ready");
+        await CheckInstalledPackages();
+        StateHasChanged();
+    }
+
+    private async Task UninstallPaddleOcrCpu()
+    {
+        isInstalling = true;
+        installingPackage = "paddleocr-cpu";
+        installLog = string.Empty;
+        AppState.SetStatus("Uninstalling PaddleOCR (CPU)...", true);
+        StateHasChanged();
+
+        var result = await Task.Run(() => PythonEnv.UninstallPaddleOcrCpuAsync(venvPath, log =>
+        {
+            installLog += log + "\n";
+            InvokeAsync(StateHasChanged);
+        }));
+
+        installLog += "\n" + result.message;
+        isInstalling = false;
+        installingPackage = string.Empty;
+        AppState.SetStatus("Ready");
+        await CheckInstalledPackages();
+        StateHasChanged();
+    }
+
+    private async Task UninstallPaddleOcrGpu()
+    {
+        isInstalling = true;
+        installingPackage = "paddleocr-gpu";
+        installLog = string.Empty;
+        AppState.SetStatus("Uninstalling PaddleOCR (GPU)...", true);
+        StateHasChanged();
+
+        var result = await Task.Run(() => PythonEnv.UninstallPaddleOcrGpuAsync(venvPath, log =>
+        {
+            installLog += log + "\n";
+            InvokeAsync(StateHasChanged);
+        }));
+
+        installLog += "\n" + result.message;
+        isInstalling = false;
+        installingPackage = string.Empty;
+        AppState.SetStatus("Ready");
+        await CheckInstalledPackages();
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Unified uninstall for PaddleOCR (both CPU and GPU)
+    /// </summary>
+    private async Task UninstallPaddleOcr()
+    {
+        if (paddleGpuInstalled)
+        {
+            await UninstallPaddleOcrGpu();
+        }
+        else if (paddleCpuInstalled)
+        {
+            await UninstallPaddleOcrCpu();
+        }
+    }
+
+    /// <summary>
+    /// Switch from CPU to GPU version (uninstall CPU, install GPU)
+    /// </summary>
+    private async Task SwitchToGpuVersion()
+    {
+        isInstalling = true;
+        installingPackage = "paddleocr-switch-gpu";
+        installLog = string.Empty;
+        AppState.SetStatus("Switching to GPU version...", true);
+        StateHasChanged();
+
+        // First uninstall CPU version
+        installLog += "=== Uninstalling CPU version ===\n";
+        var uninstallResult = await Task.Run(() => PythonEnv.UninstallPaddleOcrCpuAsync(venvPath, log =>
+        {
+            installLog += log + "\n";
+            InvokeAsync(StateHasChanged);
+        }));
+        installLog += uninstallResult.message + "\n\n";
+
+        // Then install GPU version
+        installLog += "=== Installing GPU version ===\n";
+        var installResult = await Task.Run(() => PythonEnv.InstallPaddleOcrGpuAsync(venvPath, log =>
+        {
+            installLog += log + "\n";
+            InvokeAsync(StateHasChanged);
+        }));
+        installLog += "\n" + installResult.message;
+
+        isInstalling = false;
+        installingPackage = string.Empty;
+        AppState.SetStatus("Ready");
+        await CheckInstalledPackages();
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Switch from GPU to CPU version (uninstall GPU, install CPU)
+    /// </summary>
+    private async Task SwitchToCpuVersion()
+    {
+        isInstalling = true;
+        installingPackage = "paddleocr-switch-cpu";
+        installLog = string.Empty;
+        AppState.SetStatus("Switching to CPU version...", true);
+        StateHasChanged();
+
+        // First uninstall GPU version
+        installLog += "=== Uninstalling GPU version ===\n";
+        var uninstallResult = await Task.Run(() => PythonEnv.UninstallPaddleOcrGpuAsync(venvPath, log =>
+        {
+            installLog += log + "\n";
+            InvokeAsync(StateHasChanged);
+        }));
+        installLog += uninstallResult.message + "\n\n";
+
+        // Then install CPU version
+        installLog += "=== Installing CPU version ===\n";
+        var installResult = await Task.Run(() => PythonEnv.InstallPaddleOcrCpuAsync(venvPath, log =>
+        {
+            installLog += log + "\n";
+            InvokeAsync(StateHasChanged);
+        }));
+        installLog += "\n" + installResult.message;
+
+        isInstalling = false;
+        installingPackage = string.Empty;
+        AppState.SetStatus("Ready");
+        await CheckInstalledPackages();
         StateHasChanged();
     }
 
