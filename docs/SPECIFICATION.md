@@ -21,7 +21,18 @@ MarkBridgeは、Microsoft製「MarkItDown」ライブラリおよびDoclingを�
 - 画面上部のタブナビゲーション（Convert / Files & Editor / Settings）
 - 画面下部にステータスバー（処理状態、venv状態表示）
 
-### 2.2 非同期処理
+### 2.2 起動時初期化
+
+起動時にローディング画面を表示し、以下の初期化が完了するまで操作をブロック:
+
+1. 設定ファイル読み込み
+2. Pythonインストール確認
+3. 仮想環境確認
+4. パッケージ確認（venv有効時）
+
+初期化中は「設定を読み込み中...」「Python環境を確認中...」等のステータスメッセージを表示。
+
+### 2.3 非同期処理
 
 - 時間のかかる処理（変換、インストール等）は非同期実行
 - 処理中はスピナー/プログレスバーを表示
@@ -69,6 +80,7 @@ MarkBridgeは、Microsoft製「MarkItDown」ライブラリおよびDoclingを�
 #### エンジンオプション（Docling選択時のみ有効）
 
 - Enable OCR: スキャンPDF用文字認識（EasyOCRを使用）
+  - Force Full Page OCR: ページ全体をOCR処理（混在コンテンツの精度向上）
 - Image Export: 画像エクスポートモード
   - None: 画像なし（プレースホルダーのみ）
   - Embedded: Base64でMarkdown内に埋め込み
@@ -76,7 +88,7 @@ MarkBridgeは、Microsoft製「MarkItDown」ライブラリおよびDoclingを�
 
 #### OCRエンジン仕様
 
-DoclingのOCRにはEasyOCRを採用。
+DoclingのOCRにはEasyOCRを採用。日本語と英語を同時認識（`--ocr-lang ja,en`）。
 
 | エンジン | 精度 | 速度 | インストール | GPU対応 | ライセンス |
 |----------|------|------|--------------|---------|------------|
@@ -90,6 +102,9 @@ DoclingのOCRにはEasyOCRを採用。
 - 深層学習ベースでノイズ・手書き・複雑レイアウトに強い
 - 日本語を含む80言語以上をサポート
 - Apache 2.0ライセンスで商用利用可能
+
+**Force Full Page OCR:**
+テキストと画像が混在するPDFで、表やグラフが画像として埋め込まれている場合に有効。ページ全体を画像として扱いOCR処理を行うことで、通常のハイブリッド処理では認識できない画像内のテキストも抽出可能。処理時間は長くなるが精度が向上する。
 
 **インストール方法:**
 Settings画面で「Install EasyOCR」ボタンをクリック（`docling[easyocr]`として自動インストール）
@@ -145,6 +160,7 @@ Settings画面で「Install EasyOCR」ボタンをクリック（`docling[easyoc
 
 - デフォルトスコープ: `Documents\MarkBridge\Output`
 - ツールバー: Refresh / New Folder / Delete / Search
+- **折りたたみ機能**: 左上の`◀`ボタンでパネルを折りたたみ、編集領域を拡大可能
 - ファイル操作: 閲覧、作成、削除、名前変更、移動
 
 #### 右ペイン: Markdown Editor
@@ -152,6 +168,19 @@ Settings画面で「Install EasyOCR」ボタンをクリック（`docling[easyoc
 - BlazorMonaco（ローカル同梱）
 - Edit / Previewモード切替
 - 書式ツールバー（太字、見出し、リスト、リンク、コード）
+- **ファイルを閉じる**: 右上の`×`ボタンで現在のファイルを閉じる
+- **HTMLエクスポート**: 右上の「HTML」ボタンでスタイル付きHTMLファイルとして保存
+
+#### Markdownプレビュー機能
+
+Markdigライブラリで以下の拡張機能を有効化:
+
+| 機能 | 説明 |
+|------|------|
+| Pipe Tables | GitHub風テーブル構文 |
+| Task Lists | チェックボックスリスト |
+| Auto Links | URLの自動リンク化 |
+| Emphasis Extras | 取り消し線など |
 
 #### 保存仕様
 
