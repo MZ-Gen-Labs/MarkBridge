@@ -283,6 +283,27 @@
                     </button>
                 </div>
 
+                <!-- PaddleOCR -->
+                <div class="d-flex align-items-center justify-content-between mb-3 pb-3 border-bottom">
+                    <div>
+                        <strong>PaddleOCR</strong>
+                        <span class="text-muted ms-2">Advanced layout analysis and table recognition (PP-Structure)</span>
+                        @if (!string.IsNullOrEmpty(paddleOcrVersion))
+                        {
+                            <span class="badge bg-success ms-2">v@(paddleOcrVersion)</span>
+                        }
+                    </div>
+                    <button class="btn @(paddleOcrInstalled ? "btn-outline-secondary" : "btn-primary")" 
+                            @onclick="InstallPaddleOcr" disabled="@isInstalling">
+                        @if (isInstalling && installingPackage == "paddleocr")
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                        }
+                        <i class="bi @(paddleOcrInstalled ? "bi-arrow-clockwise" : "bi-download") me-1"></i>
+                        @(paddleOcrInstalled ? "Update" : "Install") PaddleOCR
+                    </button>
+                </div>
+
                 <!-- CUDA Support -->
                 <div class="d-flex align-items-center justify-content-between">
                     <div>
@@ -420,6 +441,8 @@
     private string? doclingVersion;
     private bool easyocrInstalled = false;
     private string? easyocrVersion;
+    private bool paddleOcrInstalled = false;
+    private string? paddleOcrVersion;
     private bool cudaInstalled = false;
     private string? torchVersion;
     private string? cudaVersion;
@@ -886,6 +909,10 @@
         easyocrInstalled = easyocr.installed;
         easyocrVersion = easyocr.version;
 
+        var paddle = await PythonEnv.CheckPaddleOcrAsync(venvPath);
+        paddleOcrInstalled = paddle.installed;
+        paddleOcrVersion = paddle.version;
+
         var cuda = await PythonEnv.CheckCudaAsync(venvPath);
         cudaInstalled = cuda.installed;
         torchVersion = cuda.torchVersion;
@@ -945,6 +972,30 @@
         StateHasChanged();
 
         var result = await Task.Run(() => PythonEnv.InstallEasyOcrAsync(venvPath, log =>
+        {
+            installLog += log + "\n";
+            InvokeAsync(StateHasChanged);
+        }));
+
+        installLog += "\n" + result.message;
+        isInstalling = false;
+        installingPackage = string.Empty;
+        AppState.SetStatus("Ready");
+        await CheckInstalledPackages();
+        StateHasChanged();
+    }
+
+
+
+    private async Task InstallPaddleOcr()
+    {
+        isInstalling = true;
+        installingPackage = "paddleocr";
+        installLog = string.Empty;
+        AppState.SetStatus("Installing PaddleOCR...", true);
+        StateHasChanged();
+
+        var result = await Task.Run(() => PythonEnv.InstallPaddleOcrAsync(venvPath, log =>
         {
             installLog += log + "\n";
             InvokeAsync(StateHasChanged);

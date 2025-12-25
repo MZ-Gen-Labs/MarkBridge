@@ -336,6 +336,27 @@ public class PythonEnvironmentService
     }
 
     /// <summary>
+    /// Check if PaddleOCR is installed
+    /// </summary>
+    public async Task<(bool installed, string? version)> CheckPaddleOcrAsync(string venvPath)
+    {
+        return await CheckPackageAsync(venvPath, "paddleocr");
+    }
+
+    /// <summary>
+    /// Install PaddleOCR
+    /// </summary>
+    public async Task<(bool success, string message)> InstallPaddleOcrAsync(string venvPath, Action<string>? onProgress = null)
+    {
+        onProgress?.Invoke("Installing PaddleOCR (this may take a while)...");
+        // Install paddlepaddle (CPU), paddleocr, and necessary dependencies
+        var result = await RunPipCommandAsync(GetVenvPythonPath(venvPath), "install paddlepaddle paddleocr opencv-python-headless", onProgress);
+        return result.exitCode == 0
+            ? (true, "PaddleOCR installed successfully.")
+            : (false, $"Installation failed: {result.error}");
+    }
+
+    /// <summary>
     /// Install PyTorch with CUDA support
     /// </summary>
     public async Task<(bool success, string message)> InstallCudaSupportAsync(string venvPath, bool useNightly, Action<string>? onProgress = null)

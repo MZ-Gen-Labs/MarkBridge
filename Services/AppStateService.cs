@@ -113,6 +113,12 @@ public class AppStateService
         set { _settings.UseDoclingGpu = value; NotifyStateChanged(); }
     }
 
+    public bool UsePaddleOcr
+    {
+        get => _settings.UsePaddleOcr;
+        set { _settings.UsePaddleOcr = value; NotifyStateChanged(); }
+    }
+
     #endregion
 
     #region Status
@@ -247,13 +253,15 @@ public class AppSettings
     public bool UseMarkItDown { get; set; } = true;
     public bool UseDocling { get; set; } = false;
     public bool UseDoclingGpu { get; set; } = false;
+    public bool UsePaddleOcr { get; set; } = false;
 }
 
 public enum ConversionEngine
 {
     MarkItDown,
     Docling,
-    DoclingGpu
+    DoclingGpu,
+    PaddleOcr
 }
 
 /// <summary>
@@ -288,6 +296,7 @@ public class QueueItem
         ConversionEngine.MarkItDown => "MarkItDown",
         ConversionEngine.Docling => "Docling (CPU)",
         ConversionEngine.DoclingGpu => "Docling (GPU)",
+        ConversionEngine.PaddleOcr => "PaddleOCR",
         _ => "Auto"
     };
     
@@ -296,6 +305,7 @@ public class QueueItem
         ConversionEngine.MarkItDown => "_it.md",
         ConversionEngine.Docling => "_dl.md",
         ConversionEngine.DoclingGpu => "_dlc.md",
+        ConversionEngine.PaddleOcr => "_pd.md",
         _ => ".md"
     };
     

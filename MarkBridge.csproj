@@ -63,7 +63,7 @@
 
     <!-- Python wrapper scripts -->
     <ItemGroup>
-        <None Update="Python\**\*">
+        <None Update="Resources\Python\**\*">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
     </ItemGroup>

@@ -47,6 +47,13 @@
                             <span class="text-muted small">→ _dlc.md</span>
                         </label>
                     </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="usePaddleOcr" @bind="usePaddleOcr">
+                        <label class="form-check-label" for="usePaddleOcr">
+                            <i class="bi bi-grid-3x3 text-info me-1"></i>PaddleOCR
+                            <span class="text-muted small">→ _pd.md</span>
+                        </label>
+                    </div>
                     @if (!HasEngineSelected)
                     {
                         <div class="text-danger small mt-1">
@@ -280,6 +287,11 @@
         get => AppState.UseDoclingGpu;
         set => AppState.UseDoclingGpu = value;
     }
+    private bool usePaddleOcr
+    {
+        get => AppState.UsePaddleOcr;
+        set => AppState.UsePaddleOcr = value;
+    }
     
     // Engine-specific options - now bound to AppState for persistence
     private bool enableOcr
@@ -315,7 +327,7 @@
     private Action<List<string>>? _dropHandler;
 
     private int SelectedCount => queueItems.Count(x => x.IsSelected);
-    private bool HasEngineSelected => useMarkItDown || useDocling || useDoclingGpu;
+    private bool HasEngineSelected => useMarkItDown || useDocling || useDoclingGpu || usePaddleOcr;
 
     // Supported file extensions
     private static readonly HashSet<string> SupportedExtensions = new(StringComparer.OrdinalIgnoreCase)
@@ -418,6 +430,7 @@
         if (useMarkItDown) engines.Add(MarkBridge.Services.ConversionEngine.MarkItDown);
         if (useDocling) engines.Add(MarkBridge.Services.ConversionEngine.Docling);
         if (useDoclingGpu) engines.Add(MarkBridge.Services.ConversionEngine.DoclingGpu);
+        if (usePaddleOcr) engines.Add(MarkBridge.Services.ConversionEngine.PaddleOcr);
         return engines;
     }
 
@@ -655,6 +668,7 @@
         MarkBridge.Services.ConversionEngine.MarkItDown => "bg-warning text-dark",
         MarkBridge.Services.ConversionEngine.Docling => "bg-danger",
         MarkBridge.Services.ConversionEngine.DoclingGpu => "bg-success",
+        MarkBridge.Services.ConversionEngine.PaddleOcr => "bg-info text-dark",
         _ => "bg-secondary"
     };
 

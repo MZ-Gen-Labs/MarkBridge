@@ -74,6 +74,9 @@ public class ConversionService
                     result = doclingResult.output;
                     doclingOutputPath = doclingResult.outputFilePath;
                     break;
+                case ConversionEngine.PaddleOcr:
+                    result = await RunPaddleOcrAsync(pythonPath, inputPath, fullOutputPath, cancellationToken, onProgress);
+                    break;
                 default:
                     return new ConversionResult
                     {
@@ -140,6 +143,7 @@ public class ConversionService
             ConversionEngine.MarkItDown => "_it",
             ConversionEngine.Docling => "_dl",
             ConversionEngine.DoclingGpu => "_dlc",
+            ConversionEngine.PaddleOcr => "_pd",
             _ => ""
         };
         return $"{baseName}{suffix}.md";
@@ -156,6 +160,35 @@ public class ConversionService
         var args = $"-m markitdown \"{inputPath}\" -o \"{outputPath}\"";
 
         onProgress?.Invoke($"Running MarkItDown: {Path.GetFileName(inputPath)}");
+
+        return await RunPythonProcessAsync(pythonPath, args, cancellationToken, onProgress);
+    }
+
+    private async Task<string> RunPaddleOcrAsync(
+        string pythonPath,
+        string inputPath,
+        string outputPath,
+        CancellationToken cancellationToken,
+        Action<string>? onProgress)
+    {
+        var scriptPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Resources", "Python", "paddle_convert.py");
+        // Fallback for development time if BaseDirectory is bin output
+        if (!File.Exists(scriptPath))
+        {
+             // Try to find it in source tree if not copied to output yet
+             var projectDir = Path.GetDirectoryName(Path.GetDirectoryName(Path.GetDirectoryName(AppDomain.CurrentDomain.BaseDirectory)));
+             if (projectDir != null)
+                 scriptPath = Path.Combine(projectDir, "Resources", "Python", "paddle_convert.py");
+        }
+
+        if (!File.Exists(scriptPath))
+        {
+            return "Error: paddle_convert.py script not found.";
+        }
+
+        var args = $"\"{scriptPath}\" \"{inputPath}\" \"{outputPath}\" --lang japan";
+
+        onProgress?.Invoke($"Running PaddleOCR: {Path.GetFileName(inputPath)}");
 
         return await RunPythonProcessAsync(pythonPath, args, cancellationToken, onProgress);
     }
