@@ -81,18 +81,22 @@ def main():
 
     try:
         # Initialize PaddleOCR engine
+        print(f"PaddlePaddle version: {paddle.__version__}")
+        print(f"Available devices: {paddle.device.get_all_device()}")
         print(f"Initializing PaddleOCR (lang={lang}, gpu={use_gpu})...")
         device = 'gpu' if use_gpu else 'cpu'
         
-        try:
-             table_engine = PPStructure(lang=lang, device=device)
-        except Exception as e:
-             if device == 'gpu':
-                 print(f"Warning: Failed to initialize PaddleOCR with GPU: {e}")
-                 print("Falling back to CPU...")
-                 table_engine = PPStructure(lang=lang, device='cpu')
-             else:
-                 raise e
+        if use_gpu:
+            print("Initializing PaddleOCR in GPU mode...")
+            try:
+                table_engine = PPStructure(lang=lang, device='gpu')
+            except Exception as e:
+                print(f"CRITICAL ERROR: Failed to initialize PaddleOCR with GPU: {e}")
+                print("Strict GPU mode requested. Aborting.")
+                sys.exit(1)
+        else:
+            print("Initializing PaddleOCR in CPU mode...")
+            table_engine = PPStructure(lang=lang, device='cpu')
 
         print(f"Starting conversion for: {input_path}")
         
