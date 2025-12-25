@@ -1,3 +1,4 @@
+@using MarkBridge.Services
 @inject Services.AppStateService AppState
 @inject Services.ConversionService ConversionSvc
 @inject IJSRuntime JS
@@ -230,7 +231,9 @@
 </div>
 
 @code {
-    private List<QueueItem> queueItems = new();
+    // Queue items - now stored in AppState for persistence across tab switches
+    private List<QueueItem> queueItems => AppState.QueueItems;
+    
     private bool isDragOver = false;
     private bool isConverting = false;
     private bool selectAll = false;
@@ -636,46 +639,6 @@
         cancellationTokenSource?.Dispose();
     }
 
-    public class QueueItem
-    {
-        public string FileName { get; set; } = string.Empty;
-        public string FilePath { get; set; } = string.Empty;
-        public string FileType { get; set; } = string.Empty;
-        public bool IsSelected { get; set; } = true;
-        public ConversionStatus Status { get; set; } = ConversionStatus.Queued;
-        public string? ErrorMessage { get; set; }
-        public MarkBridge.Services.ConversionEngine? Engine { get; set; }
-        public TimeSpan? ElapsedTime { get; set; }
-        
-        public string EngineName => Engine switch
-        {
-            MarkBridge.Services.ConversionEngine.MarkItDown => "MarkItDown",
-            MarkBridge.Services.ConversionEngine.Docling => "Docling (CPU)",
-            MarkBridge.Services.ConversionEngine.DoclingGpu => "Docling (GPU)",
-            _ => "Auto"
-        };
-        
-        public string OutputSuffix => Engine switch
-        {
-            MarkBridge.Services.ConversionEngine.MarkItDown => "_it.md",
-            MarkBridge.Services.ConversionEngine.Docling => "_dl.md",
-            MarkBridge.Services.ConversionEngine.DoclingGpu => "_dlc.md",
-            _ => ".md"
-        };
-        
-        public string ElapsedTimeText => ElapsedTime.HasValue 
-            ? ElapsedTime.Value.TotalSeconds < 60 
-                ? $"{ElapsedTime.Value.TotalSeconds:F1}s"
-                : $"{(int)ElapsedTime.Value.TotalMinutes}m {ElapsedTime.Value.Seconds}s"
-            : "";
-    }
-
-    public enum ConversionStatus
-    {
-        Queued,
-        Converting,
-        Completed,
-        Failed,
-        Unsupported
-    }
+    // QueueItem and ConversionStatus are now defined in AppStateService.cs
 }
+

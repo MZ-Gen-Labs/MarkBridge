@@ -127,6 +127,15 @@ public class AppStateService
 
     #endregion
 
+    #region Conversion Queue (in-memory only, not persisted)
+
+    /// <summary>
+    /// Conversion queue items - kept in memory across tab switches but not saved to disk
+    /// </summary>
+    public List<QueueItem> QueueItems { get; } = new();
+
+    #endregion
+
     #region Persistence
 
     public async Task InitializeAsync()
@@ -214,4 +223,50 @@ public enum ConversionEngine
     MarkItDown,
     Docling,
     DoclingGpu
+}
+
+/// <summary>
+/// Conversion queue item - holds file conversion state
+/// </summary>
+public class QueueItem
+{
+    public string FileName { get; set; } = string.Empty;
+    public string FilePath { get; set; } = string.Empty;
+    public string FileType { get; set; } = string.Empty;
+    public bool IsSelected { get; set; } = true;
+    public ConversionStatus Status { get; set; } = ConversionStatus.Queued;
+    public string? ErrorMessage { get; set; }
+    public ConversionEngine? Engine { get; set; }
+    public TimeSpan? ElapsedTime { get; set; }
+    
+    public string EngineName => Engine switch
+    {
+        ConversionEngine.MarkItDown => "MarkItDown",
+        ConversionEngine.Docling => "Docling (CPU)",
+        ConversionEngine.DoclingGpu => "Docling (GPU)",
+        _ => "Auto"
+    };
+    
+    public string OutputSuffix => Engine switch
+    {
+        ConversionEngine.MarkItDown => "_it.md",
+        ConversionEngine.Docling => "_dl.md",
+        ConversionEngine.DoclingGpu => "_dlc.md",
+        _ => ".md"
+    };
+    
+    public string ElapsedTimeText => ElapsedTime.HasValue 
+        ? ElapsedTime.Value.TotalSeconds < 60 
+            ? $"{ElapsedTime.Value.TotalSeconds:F1}s"
+            : $"{(int)ElapsedTime.Value.TotalMinutes}m {ElapsedTime.Value.Seconds}s"
+        : "";
+}
+
+public enum ConversionStatus
+{
+    Queued,
+    Converting,
+    Completed,
+    Failed,
+    Unsupported
 }
