@@ -262,6 +262,27 @@
                     </button>
                 </div>
 
+                <!-- EasyOCR (for OCR support) -->
+                <div class="d-flex align-items-center justify-content-between mb-3 pb-3 border-bottom">
+                    <div>
+                        <strong>EasyOCR</strong>
+                        <span class="text-muted ms-2">OCR support for scanned PDFs (required for Enable OCR)</span>
+                        @if (!string.IsNullOrEmpty(easyocrVersion))
+                        {
+                            <span class="badge bg-success ms-2">v@(easyocrVersion)</span>
+                        }
+                    </div>
+                    <button class="btn @(easyocrInstalled ? "btn-outline-secondary" : "btn-primary")" 
+                            @onclick="InstallEasyOcr" disabled="@isInstalling">
+                        @if (isInstalling && installingPackage == "easyocr")
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                        }
+                        <i class="bi @(easyocrInstalled ? "bi-arrow-clockwise" : "bi-download") me-1"></i>
+                        @(easyocrInstalled ? "Update" : "Install") EasyOCR
+                    </button>
+                </div>
+
                 <!-- CUDA Support -->
                 <div class="d-flex align-items-center justify-content-between">
                     <div>
@@ -392,6 +413,8 @@
     private string? markitdownVersion;
     private bool doclingInstalled = false;
     private string? doclingVersion;
+    private bool easyocrInstalled = false;
+    private string? easyocrVersion;
     private bool isInstalling = false;
     private string installingPackage = string.Empty;
     private string installLog = string.Empty;
@@ -850,6 +873,10 @@
         doclingInstalled = docling.installed;
         doclingVersion = docling.version;
         AppState.DoclingVersion = docling.version;
+
+        var easyocr = await PythonEnv.CheckEasyOcrAsync(venvPath);
+        easyocrInstalled = easyocr.installed;
+        easyocrVersion = easyocr.version;
     }
 
     private async Task InstallMarkItDown()
@@ -883,6 +910,28 @@
         StateHasChanged();
 
         var result = await Task.Run(() => PythonEnv.InstallDoclingAsync(venvPath, log =>
+        {
+            installLog += log + "\n";
+            InvokeAsync(StateHasChanged);
+        }));
+
+        installLog += "\n" + result.message;
+        isInstalling = false;
+        installingPackage = string.Empty;
+        AppState.SetStatus("Ready");
+        await CheckInstalledPackages();
+        StateHasChanged();
+    }
+
+    private async Task InstallEasyOcr()
+    {
+        isInstalling = true;
+        installingPackage = "easyocr";
+        installLog = string.Empty;
+        AppState.SetStatus("Installing EasyOCR...", true);
+        StateHasChanged();
+
+        var result = await Task.Run(() => PythonEnv.InstallEasyOcrAsync(venvPath, log =>
         {
             installLog += log + "\n";
             InvokeAsync(StateHasChanged);

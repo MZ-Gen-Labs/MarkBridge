@@ -273,6 +273,26 @@ public class PythonEnvironmentService
     }
 
     /// <summary>
+    /// Check if EasyOCR is installed (via docling[easyocr])
+    /// </summary>
+    public async Task<(bool installed, string? version)> CheckEasyOcrAsync(string venvPath)
+    {
+        return await CheckPackageAsync(venvPath, "easyocr");
+    }
+
+    /// <summary>
+    /// Install EasyOCR for Docling
+    /// </summary>
+    public async Task<(bool success, string message)> InstallEasyOcrAsync(string venvPath, Action<string>? onProgress = null)
+    {
+        onProgress?.Invoke("Installing EasyOCR for Docling OCR...");
+        var result = await RunPipCommandAsync(GetVenvPythonPath(venvPath), "install \"docling[easyocr]\"", onProgress);
+        return result.exitCode == 0
+            ? (true, "EasyOCR installed successfully.")
+            : (false, $"Installation failed: {result.error}");
+    }
+
+    /// <summary>
     /// Install PyTorch with CUDA support
     /// </summary>
     public async Task<(bool success, string message)> InstallCudaSupportAsync(string venvPath, bool useNightly, Action<string>? onProgress = null)

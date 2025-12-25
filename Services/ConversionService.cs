@@ -190,7 +190,7 @@ public class ConversionService
 
             if (options.EnableOcr)
             {
-                sb.Append(" --ocr-engine tesseract");
+                sb.Append(" --ocr-engine easyocr");
             }
 
             // Image export mode: none (placeholder), embedded (base64), or external files (referenced)
