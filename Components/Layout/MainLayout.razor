@@ -3,6 +3,24 @@
 @implements IDisposable
 
 <div class="d-flex flex-column vh-100">
+    @if (isInitializing)
+    {
+        <!-- Initialization Loading Overlay -->
+        <div class="position-fixed top-0 start-0 w-100 h-100 d-flex flex-column align-items-center justify-content-center bg-body" style="z-index: 9999;">
+            <div class="text-center">
+                <div class="mb-4">
+                    <i class="bi bi-file-earmark-text display-1 text-primary"></i>
+                </div>
+                <h2 class="mb-3">MarkBridge</h2>
+                <div class="spinner-border text-primary mb-3" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="text-muted">@initializationStatus</p>
+            </div>
+        </div>
+    }
+    else
+    {
     <!-- Tab Navigation -->
     <nav class="navbar navbar-expand bg-body-tertiary border-bottom px-3">
         <span class="navbar-brand mb-0 h1">
@@ -81,11 +99,14 @@
             }
         </div>
     </footer>
+    }
 </div>
 
 @code {
     private string currentTab = "settings";
     private Action? _stateHandler;
+    private bool isInitializing = true;
+    private string initializationStatus = "環境を確認中...";
 
     [Inject] private IJSRuntime JS { get; set; } = default!;
 
@@ -94,13 +115,28 @@
         _stateHandler = async () => await InvokeAsync(StateHasChanged);
         AppState.OnChange += _stateHandler;
         
+        // Show loading screen
+        isInitializing = true;
+        StateHasChanged();
+        
+        // Initialize settings
+        initializationStatus = "設定を読み込み中...";
+        StateHasChanged();
         await AppState.InitializeAsync();
+        
+        // Check Python environment
+        initializationStatus = "Python環境を確認中...";
+        StateHasChanged();
+        await Task.Delay(100); // Small delay to show status
         
         // Set initial tab based on setup status
         if (AppState.IsVenvActive)
         {
             currentTab = "convert";
         }
+        
+        // Initialization complete
+        isInitializing = false;
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
