@@ -68,4 +68,9 @@
         </None>
     </ItemGroup>
 
+    <!-- Code Signing (PostBuild) -->
+    <Target Name="SignExeAfterBuild" AfterTargets="Build" Condition="'$(Configuration)' == 'Debug' And Exists('$(OutDir)$(AssemblyName).exe')">
+        <Exec Command="powershell -NoProfile -Command &quot;$cert = Get-ChildItem Cert:\CurrentUser\My -CodeSigningCert | Where-Object { $_.Subject -eq 'CN=MarkBridge Dev' } | Select-Object -First 1; if ($cert) { Set-AuthenticodeSignature -FilePath '$(OutDir)$(AssemblyName).exe' -Certificate $cert | Out-Null; Write-Host 'Code signed: $(AssemblyName).exe' } else { Write-Host 'WARNING: Code signing certificate not found. Run New-SelfSignedCertificate to create one.' }&quot;" ContinueOnError="true" />
+    </Target>
+
 </Project>
