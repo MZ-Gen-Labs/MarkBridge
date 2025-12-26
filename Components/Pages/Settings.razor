@@ -280,7 +280,7 @@
                             <span class="@(rapidocrInstalled ? "text-success" : "text-muted") me-3"><i class="bi @(rapidocrInstalled ? "bi-check-circle-fill" : "bi-circle")"></i> RapidOCR</span>
                             <span class="@(cudaInstalled ? "text-success" : "text-muted")"><i class="bi @(cudaInstalled ? "bi-check-circle-fill" : "bi-circle")"></i> PyTorch CUDA</span>
                         </div>
-                        <div class="d-flex gap-2 flex-wrap mb-2">
+                        <div class="d-flex gap-2 flex-wrap mb-2 justify-content-end">
                             <button class="btn btn-outline-secondary btn-sm" @onclick="InstallEasyOcr" disabled="@isInstalling">
                                 @if (isInstalling && installingPackage == "easyocr") { <span class="spinner-border spinner-border-sm me-1"></span> }
                                 <i class="bi bi-download me-1"></i>@(easyocrInstalled ? "Update" : "Add") EasyOCR
