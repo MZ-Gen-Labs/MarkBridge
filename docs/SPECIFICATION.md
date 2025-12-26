@@ -224,11 +224,33 @@ Markdigライブラリで以下の拡張機能を有効化:
 | Active | ● ラジオボタン |
 | Actions | [Install] / [Uninstall] |
 
-#### 2. Virtual Environment Area
+#### 2. Conversion Engines Area（venv分離アーキテクチャ）
 
+各変換エンジンは独立した仮想環境を使用し、依存関係の競合（特にCUDAバージョン）を回避。
+
+| エンジン | venvパス | 説明 |
+|----------|----------|------|
+| MarkItDown | `.venv_markitdown` | 標準変換、軽量 |
+| Docling | `.venv_docling` | PyTorch/CUDA使用（12.4または12.8） |
+| PaddleOCR | `.venv_paddle` | PaddlePaddle使用（CUDA 12.3） |
+
+**Doclingインストールオプション:**
+
+| モード | PyTorchバージョン | 用途 |
+|--------|------------------|------|
+| CPU | CPU版 | GPU非搭載環境 |
+| GPU（推奨） | CUDA 12.4 | 通常のNVIDIA GPU |
+| Nightly | CUDA 12.8 Nightly | RTX 50シリーズ対応 |
+
+**レガシーvenv移行:**
+- 旧バージョンからアップグレード時、共有`.venv`が検出されると移行ダイアログを表示
+- 「Delete Legacy Venv」で古いvenvを削除
+- 「Dismiss」でファイルを残してパス設定のみクリア
+
+**各エンジンカードのUI:**
 - パス表示・変更（Browse...）
-- ステータス: ✅ exists / ⬜ not found
-- ボタン: venv未存在時 [Create] / 存在時 [Delete]
+- ステータス: ✅ Ready vX.X.X / ⚠️ Package not installed / ⬜ Not configured
+- ボタン: Setup CPU/GPU/Nightly / Install / Reinstall / Delete
 
 #### 3. Library Management Area
 
@@ -298,3 +320,36 @@ PDF, DOCX, PPTX, XLSX, HTML, XML, JSON, CSV, EPUB, ZIP
 | デフォルトサイズ | 1024×768 |
 | 最小サイズ | 800×600 |
 | サイズ記憶 | 終了時保存、起動時復元 |
+
+---
+
+## 7. 開発者向け備考
+
+### 7.1 PowerShell文字化け対策
+
+日本語Windows環境でPowerShellの出力が文字化けする場合、以下を実行:
+
+```powershell
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
+chcp 65001
+```
+
+永続化するには`$PROFILE`に追加。
+
+### 7.2 コード署名
+
+Windowsセキュリティポリシーにより`.exe`がブロックされる場合、自己署名証明書でコード署名:
+
+```powershell
+# 1. 証明書作成（初回のみ）
+$cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject "CN=MarkBridge Dev" -CertStoreLocation Cert:\CurrentUser\My -NotAfter (Get-Date).AddYears(5)
+
+# 2. 信頼リストに追加
+Export-Certificate -Cert $cert -FilePath ".\MarkBridge_Dev.cer"
+Import-Certificate -FilePath ".\MarkBridge_Dev.cer" -CertStoreLocation Cert:\CurrentUser\Root
+
+# 3. 署名（ビルド後自動実行 - csprojに設定済み）
+```
+
+`csproj`のPostBuildターゲットにより、Debugビルド後に自動署名される。
