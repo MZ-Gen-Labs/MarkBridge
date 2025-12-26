@@ -157,6 +157,28 @@
             }
             else
             {
+                @* Legacy venv migration warning *@
+                @if (AppState.HasLegacyVenv)
+                {
+                    <div class="alert alert-warning mb-3">
+                        <div class="d-flex align-items-center mb-2">
+                            <i class="bi bi-exclamation-triangle-fill text-warning me-2"></i>
+                            <strong>Legacy Virtual Environment Detected</strong>
+                        </div>
+                        <p class="small mb-2">
+                            A legacy shared venv was found at: <code>@AppState.LegacyVenvPath</code><br/>
+                            This version uses separate venvs for each engine to avoid dependency conflicts.
+                        </p>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-sm btn-danger" @onclick="DeleteLegacyVenv">
+                                <i class="bi bi-trash me-1"></i>Delete Legacy Venv
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary" @onclick="DismissLegacyVenvWarning">
+                                <i class="bi bi-x me-1"></i>Dismiss (keep files)
+                            </button>
+                        </div>
+                    </div>
+                }
                 <!-- MarkItDown Engine -->
                 <div class="engine-card mb-4 p-3 border rounded">
                     <div class="d-flex align-items-center justify-content-between mb-2">
@@ -179,7 +201,13 @@
                             }
                         </div>
                     </div>
-                    <div class="small text-muted mb-2"><i class="bi bi-folder me-1"></i>venv: <code>@Path.GetFileName(markitdownVenvPath)</code></div>
+                    <div class="input-group input-group-sm mb-2">
+                        <span class="input-group-text"><i class="bi bi-folder"></i></span>
+                        <input type="text" class="form-control" @bind="markitdownVenvPath" placeholder="venv path..." />
+                        <button class="btn btn-outline-secondary" @onclick="BrowseMarkItDownVenv" title="Browse...">
+                            <i class="bi bi-folder2-open"></i>
+                        </button>
+                    </div>
                     <div class="d-flex gap-2 justify-content-end">
                         @if (!markitdownVenvExists)
                         {
@@ -229,7 +257,13 @@
                             }
                         </div>
                     </div>
-                    <div class="small text-muted mb-2"><i class="bi bi-folder me-1"></i>venv: <code>@Path.GetFileName(doclingVenvPath)</code></div>
+                    <div class="input-group input-group-sm mb-2">
+                        <span class="input-group-text"><i class="bi bi-folder"></i></span>
+                        <input type="text" class="form-control" @bind="doclingVenvPath" placeholder="venv path..." />
+                        <button class="btn btn-outline-secondary" @onclick="BrowseDoclingVenv" title="Browse...">
+                            <i class="bi bi-folder2-open"></i>
+                        </button>
+                    </div>
                     @if (doclingVenvExists && doclingInstalled)
                     {
                         <div class="ms-3 mb-2 small">
@@ -306,9 +340,13 @@
                             }
                         </div>
                     </div>
-                    <div class="small text-muted mb-2">
-                        <i class="bi bi-folder me-1"></i>venv: <code>@Path.GetFileName(paddleVenvPath)</code>
-                        <span class="ms-2 text-info"><i class="bi bi-info-circle"></i> Isolated to avoid CUDA conflicts</span>
+                    <div class="input-group input-group-sm mb-2">
+                        <span class="input-group-text"><i class="bi bi-folder"></i></span>
+                        <input type="text" class="form-control" @bind="paddleVenvPath" placeholder="venv path..." />
+                        <button class="btn btn-outline-secondary" @onclick="BrowsePaddleVenv" title="Browse...">
+                            <i class="bi bi-folder2-open"></i>
+                        </button>
+                        <span class="input-group-text text-info" title="Isolated to avoid CUDA conflicts"><i class="bi bi-info-circle"></i></span>
                     </div>
                     <div class="d-flex gap-2 justify-content-end">
                         @if (!paddleVenvExists)
@@ -820,6 +858,102 @@
         
         await Task.CompletedTask;
     }
+
+    #region Venv Path Browse Methods
+
+    private async Task BrowseMarkItDownVenv()
+    {
+        try
+        {
+            var result = await FolderPicker.Default.PickAsync();
+            if (result.IsSuccessful)
+            {
+                markitdownVenvPath = result.Folder.Path;
+                AppState.MarkItDownVenvPath = markitdownVenvPath;
+                await CheckEngineVenvStatus();
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"FolderPicker error: {ex.Message}");
+        }
+    }
+
+    private async Task BrowseDoclingVenv()
+    {
+        try
+        {
+            var result = await FolderPicker.Default.PickAsync();
+            if (result.IsSuccessful)
+            {
+                doclingVenvPath = result.Folder.Path;
+                AppState.DoclingVenvPath = doclingVenvPath;
+                await CheckEngineVenvStatus();
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"FolderPicker error: {ex.Message}");
+        }
+    }
+
+    private async Task BrowsePaddleVenv()
+    {
+        try
+        {
+            var result = await FolderPicker.Default.PickAsync();
+            if (result.IsSuccessful)
+            {
+                paddleVenvPath = result.Folder.Path;
+                AppState.PaddleVenvPath = paddleVenvPath;
+                await CheckEngineVenvStatus();
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"FolderPicker error: {ex.Message}");
+        }
+    }
+
+    #endregion
+
+    #region Legacy Venv Migration
+
+    private Task DeleteLegacyVenv()
+    {
+        ShowConfirmDialog(
+            "Delete Legacy Virtual Environment",
+            $"Are you sure you want to delete the legacy venv at:\n{AppState.LegacyVenvPath}\n\nThis action cannot be undone.",
+            "Delete",
+            "btn-danger",
+            async () =>
+            {
+                installLog = "=== Deleting Legacy Venv ===\n";
+                StateHasChanged();
+
+                var result = await Task.Run(() => PythonEnv.DeleteVenv(AppState.LegacyVenvPath));
+                installLog += result.message + "\n";
+
+                // Clear legacy path from settings
+                AppState.ClearLegacyVenv();
+                
+                installLog += "Legacy venv path cleared from settings.\n";
+                StateHasChanged();
+            });
+        return Task.CompletedTask;
+    }
+
+    private void DismissLegacyVenvWarning()
+    {
+        // Clear legacy path from settings without deleting files
+        AppState.ClearLegacyVenv();
+        StateHasChanged();
+    }
+
+    #endregion
 
     #region Engine Setup Methods
 

@@ -195,6 +195,29 @@ public class AppStateService
     public string? MarkItDownVersion { get; set; }
     public string? DoclingVersion { get; set; }
 
+    /// <summary>
+    /// Returns true if legacy VirtualEnvPath is set and different from engine-specific paths
+    /// </summary>
+    public bool HasLegacyVenv => !string.IsNullOrEmpty(_settings.VirtualEnvPath) 
+        && Directory.Exists(_settings.VirtualEnvPath)
+        && _settings.VirtualEnvPath != _settings.MarkItDownVenvPath
+        && _settings.VirtualEnvPath != _settings.DoclingVenvPath
+        && _settings.VirtualEnvPath != _settings.PaddleVenvPath;
+
+    /// <summary>
+    /// Path to the legacy VirtualEnv (if exists)
+    /// </summary>
+    public string LegacyVenvPath => _settings.VirtualEnvPath;
+
+    /// <summary>
+    /// Clear the legacy VirtualEnvPath from settings
+    /// </summary>
+    public void ClearLegacyVenv()
+    {
+        _settings.VirtualEnvPath = string.Empty;
+        NotifyStateChanged();
+    }
+
     public void SetStatus(string message, bool isProcessing = false)
     {
         StatusMessage = message;
