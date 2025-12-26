@@ -1336,38 +1336,41 @@
 
     private async Task CheckInstalledPackages()
     {
-        var markitdown = await PythonEnv.CheckMarkItDownAsync(venvPath);
+        // MarkItDown - uses markitdownVenvPath
+        var markitdown = await PythonEnv.CheckMarkItDownAsync(markitdownVenvPath);
         markitdownInstalled = markitdown.installed;
         markitdownVersion = markitdown.version;
         AppState.MarkItDownVersion = markitdown.version;
 
-        var docling = await PythonEnv.CheckDoclingAsync(venvPath);
+        // Docling and OCR engines - uses doclingVenvPath
+        var docling = await PythonEnv.CheckDoclingAsync(doclingVenvPath);
         doclingInstalled = docling.installed;
         doclingVersion = docling.version;
         AppState.DoclingVersion = docling.version;
 
-        var easyocr = await PythonEnv.CheckEasyOcrAsync(venvPath);
+        var easyocr = await PythonEnv.CheckEasyOcrAsync(doclingVenvPath);
         easyocrInstalled = easyocr.installed;
         easyocrVersion = easyocr.version;
 
-        var rapidocr = await PythonEnv.CheckRapidOcrAsync(venvPath);
+        var rapidocr = await PythonEnv.CheckRapidOcrAsync(doclingVenvPath);
         rapidocrInstalled = rapidocr.installed;
         rapidocrVersion = rapidocr.version;
 
-        var paddle = await PythonEnv.CheckPaddleOcrAsync(venvPath);
-        paddleOcrInstalled = paddle.installed;
-        paddleOcrVersion = paddle.version;
-
-        var paddleCpu = await PythonEnv.CheckPaddleCpuAsync(venvPath);
-        paddleCpuInstalled = paddleCpu.installed;
-
-        var paddleGpu = await PythonEnv.CheckPaddleGpuAsync(venvPath);
-        paddleGpuInstalled = paddleGpu.installed;
-
-        var cuda = await PythonEnv.CheckCudaAsync(venvPath);
+        var cuda = await PythonEnv.CheckCudaAsync(doclingVenvPath);
         cudaInstalled = cuda.installed;
         torchVersion = cuda.torchVersion;
         cudaVersion = cuda.cudaVersion;
+
+        // PaddleOCR - uses paddleVenvPath
+        var paddle = await PythonEnv.CheckPaddleOcrAsync(paddleVenvPath);
+        paddleOcrInstalled = paddle.installed;
+        paddleOcrVersion = paddle.version;
+
+        var paddleCpu = await PythonEnv.CheckPaddleCpuAsync(paddleVenvPath);
+        paddleCpuInstalled = paddleCpu.installed;
+
+        var paddleGpu = await PythonEnv.CheckPaddleGpuAsync(paddleVenvPath);
+        paddleGpuInstalled = paddleGpu.installed;
     }
 
     private async Task InstallMarkItDown()
