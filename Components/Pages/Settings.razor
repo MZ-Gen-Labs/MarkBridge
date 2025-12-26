@@ -302,16 +302,32 @@
                     <div class="d-flex gap-2 justify-content-end">
                         @if (!doclingVenvExists)
                         {
-                            <button class="btn btn-success btn-sm" @onclick="SetupDocling" disabled="@isInstalling">
-                                @if (isInstalling && installingPackage == "docling-setup") { <span class="spinner-border spinner-border-sm me-1"></span> }
-                                <i class="bi bi-plus-circle me-1"></i>Setup Environment
+                            <button class="btn btn-outline-secondary btn-sm" @onclick="() => SetupDocling(DoclingMode.Cpu)" disabled="@isInstalling">
+                                @if (isInstalling && installingPackage == "docling-cpu-setup") { <span class="spinner-border spinner-border-sm me-1"></span> }
+                                <i class="bi bi-plus-circle me-1"></i>Setup CPU
+                            </button>
+                            <button class="btn btn-success btn-sm" @onclick="() => SetupDocling(DoclingMode.Gpu)" disabled="@isInstalling">
+                                @if (isInstalling && installingPackage == "docling-gpu-setup") { <span class="spinner-border spinner-border-sm me-1"></span> }
+                                <i class="bi bi-plus-circle me-1"></i>Setup GPU <span class="badge bg-light text-dark">Recommended</span>
+                            </button>
+                            <button class="btn btn-outline-warning btn-sm" @onclick="() => SetupDocling(DoclingMode.Nightly)" disabled="@isInstalling" title="CUDA 12.8 Nightly for RTX 50">
+                                @if (isInstalling && installingPackage == "docling-nightly-setup") { <span class="spinner-border spinner-border-sm me-1"></span> }
+                                <i class="bi bi-lightning me-1"></i>Nightly
                             </button>
                         }
                         else if (!doclingInstalled)
                         {
-                            <button class="btn btn-primary btn-sm" @onclick="InstallDocling" disabled="@isInstalling">
-                                @if (isInstalling && installingPackage == "docling") { <span class="spinner-border spinner-border-sm me-1"></span> }
-                                <i class="bi bi-download me-1"></i>Install Docling
+                            <button class="btn btn-outline-secondary btn-sm" @onclick="() => InstallDocling(DoclingMode.Cpu)" disabled="@isInstalling">
+                                @if (isInstalling && installingPackage == "docling-cpu") { <span class="spinner-border spinner-border-sm me-1"></span> }
+                                <i class="bi bi-download me-1"></i>Install CPU
+                            </button>
+                            <button class="btn btn-primary btn-sm" @onclick="() => InstallDocling(DoclingMode.Gpu)" disabled="@isInstalling">
+                                @if (isInstalling && installingPackage == "docling-gpu") { <span class="spinner-border spinner-border-sm me-1"></span> }
+                                <i class="bi bi-download me-1"></i>Install GPU
+                            </button>
+                            <button class="btn btn-outline-warning btn-sm" @onclick="() => InstallDocling(DoclingMode.Nightly)" disabled="@isInstalling" title="CUDA 12.8 Nightly for RTX 50">
+                                @if (isInstalling && installingPackage == "docling-nightly") { <span class="spinner-border spinner-border-sm me-1"></span> }
+                                <i class="bi bi-lightning me-1"></i>Nightly
                             </button>
                             <button class="btn btn-outline-danger btn-sm" @onclick="DeleteDoclingVenv" disabled="@isInstalling"><i class="bi bi-trash me-1"></i>Delete</button>
                         }
@@ -476,6 +492,9 @@
 }
 
 @code {
+    // DoclingMode enum for CPU/GPU/Nightly selection
+    private enum DoclingMode { Cpu, Gpu, Nightly }
+    
     // Python
     private string pythonPath = string.Empty;
     private string pythonStatus = string.Empty;
@@ -1037,12 +1056,25 @@
         await SetupMarkItDown();
     }
 
-    private async Task SetupDocling()
+    private async Task SetupDocling(DoclingMode mode)
     {
         isInstalling = true;
-        installingPackage = "docling-setup";
-        installLog = "=== Setting up Docling Environment ===\n";
-        AppState.SetStatus("Setting up Docling...", true);
+        installingPackage = mode switch
+        {
+            DoclingMode.Cpu => "docling-cpu-setup",
+            DoclingMode.Gpu => "docling-gpu-setup",
+            DoclingMode.Nightly => "docling-nightly-setup",
+            _ => "docling-setup"
+        };
+        var modeLabel = mode switch
+        {
+            DoclingMode.Cpu => "CPU",
+            DoclingMode.Gpu => "GPU (CUDA 12.4)",
+            DoclingMode.Nightly => "Nightly (CUDA 12.8)",
+            _ => ""
+        };
+        installLog = $"=== Setting up Docling Environment ({modeLabel}) ===\n";
+        AppState.SetStatus($"Setting up Docling ({modeLabel})...", true);
         StateHasChanged();
 
         try
@@ -1068,6 +1100,19 @@
             }));
 
             installLog += $"\n{installResult.message}\n";
+
+            // Install PyTorch based on mode
+            if (mode == DoclingMode.Gpu || mode == DoclingMode.Nightly)
+            {
+                bool isNightly = mode == DoclingMode.Nightly;
+                installLog += $"\nInstalling PyTorch CUDA ({(isNightly ? "12.8 Nightly" : "12.4")})...\n";
+                var cudaResult = await Task.Run(() => PythonEnv.InstallCudaSupportAsync(doclingVenvPath, isNightly, log =>
+                {
+                    installLog += log + "\n";
+                    InvokeAsync(StateHasChanged);
+                }));
+                installLog += $"\n{cudaResult.message}\n";
+            }
         }
         finally
         {
@@ -1104,7 +1149,7 @@
     private async Task ReinstallDocling()
     {
         await Task.Run(() => PythonEnv.DeleteVenv(doclingVenvPath));
-        await SetupDocling();
+        await SetupDocling(DoclingMode.Gpu); // Default to GPU mode for reinstall
     }
 
     private async Task SetupPaddleCpu() => await SetupPaddle(false);
@@ -1347,21 +1392,48 @@
         StateHasChanged();
     }
 
-    private async Task InstallDocling()
+    private async Task InstallDocling(DoclingMode mode)
     {
         isInstalling = true;
-        installingPackage = "docling";
-        installLog = string.Empty;
-        AppState.SetStatus("Installing Docling...", true);
+        installingPackage = mode switch
+        {
+            DoclingMode.Cpu => "docling-cpu",
+            DoclingMode.Gpu => "docling-gpu",
+            DoclingMode.Nightly => "docling-nightly",
+            _ => "docling"
+        };
+        var modeLabel = mode switch
+        {
+            DoclingMode.Cpu => "CPU",
+            DoclingMode.Gpu => "GPU (CUDA 12.4)",
+            DoclingMode.Nightly => "Nightly (CUDA 12.8)",
+            _ => ""
+        };
+        installLog = $"=== Installing Docling ({modeLabel}) ===\n";
+        AppState.SetStatus($"Installing Docling ({modeLabel})...", true);
         StateHasChanged();
 
-        var result = await Task.Run(() => PythonEnv.InstallDoclingAsync(venvPath, log =>
+        var result = await Task.Run(() => PythonEnv.InstallDoclingAsync(doclingVenvPath, log =>
         {
             installLog += log + "\n";
             InvokeAsync(StateHasChanged);
         }));
 
         installLog += "\n" + result.message;
+
+        // Install PyTorch based on mode
+        if (mode == DoclingMode.Gpu || mode == DoclingMode.Nightly)
+        {
+            bool isNightly = mode == DoclingMode.Nightly;
+            installLog += $"\nInstalling PyTorch CUDA ({(isNightly ? "12.8 Nightly" : "12.4")})...\n";
+            var cudaResult = await Task.Run(() => PythonEnv.InstallCudaSupportAsync(doclingVenvPath, isNightly, log =>
+            {
+                installLog += log + "\n";
+                InvokeAsync(StateHasChanged);
+            }));
+            installLog += $"\n{cudaResult.message}\n";
+        }
+
         isInstalling = false;
         installingPackage = string.Empty;
         AppState.SetStatus("Ready");
