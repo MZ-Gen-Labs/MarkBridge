@@ -577,7 +577,7 @@
     private string installingVersionName = "";
     private bool isRefreshingVersions = false;
 
-    // Venv
+    // Venv (Legacy - for backward compatibility)
     private string venvPath = string.Empty;
     private string venvStatus = "Not configured";
     private string venvStatusClass = "status-warning";
@@ -585,6 +585,14 @@
     private bool venvExists = false;
     private bool isVenvProcessing = false;
     private string venvLog = string.Empty;
+
+    // Engine-specific Venvs
+    private string markitdownVenvPath = string.Empty;
+    private string doclingVenvPath = string.Empty;
+    private string paddleVenvPath = string.Empty;
+    private bool markitdownVenvExists = false;
+    private bool doclingVenvExists = false;
+    private bool paddleVenvExists = false;
 
     // Packages
     private bool markitdownInstalled = false;
@@ -649,12 +657,16 @@
         {
             await RefreshVersions();
         }
-        
-        // Auto-detect installed packages if venv is valid
-        if (venvExists)
-        {
-            await CheckInstalledPackages();
-        }
+        // Load engine-specific venv paths
+        markitdownVenvPath = AppState.MarkItDownVenvPath;
+        doclingVenvPath = AppState.DoclingVenvPath;
+        paddleVenvPath = AppState.PaddleVenvPath;
+
+        // Check engine venv status
+        await CheckEngineVenvStatus();
+
+        // Auto-detect installed packages
+        await CheckInstalledPackages();
     }
 
     #region Python Methods
@@ -941,6 +953,236 @@
 
         StateHasChanged();
     }
+
+    private async Task CheckEngineVenvStatus()
+    {
+        markitdownVenvExists = PythonEnv.IsVenvValid(markitdownVenvPath);
+        doclingVenvExists = PythonEnv.IsVenvValid(doclingVenvPath);
+        paddleVenvExists = PythonEnv.IsVenvValid(paddleVenvPath);
+        
+        AppState.IsMarkItDownVenvActive = markitdownVenvExists;
+        AppState.IsDoclingVenvActive = doclingVenvExists;
+        AppState.IsPaddleVenvActive = paddleVenvExists;
+        
+        await Task.CompletedTask;
+    }
+
+    #region Engine Setup Methods
+
+    private async Task SetupMarkItDown()
+    {
+        isInstalling = true;
+        installingPackage = "markitdown-setup";
+        installLog = "=== Setting up MarkItDown Environment ===\n";
+        AppState.SetStatus("Setting up MarkItDown...", true);
+        StateHasChanged();
+
+        try
+        {
+            installLog += "Creating virtual environment...\n";
+            var venvResult = await Task.Run(() => PythonEnv.CreateVenvAsync(pythonPath, markitdownVenvPath, log =>
+            {
+                installLog += log + "\n";
+                InvokeAsync(StateHasChanged);
+            }));
+
+            if (!venvResult.success)
+            {
+                installLog += $"Error: {venvResult.message}\n";
+                return;
+            }
+
+            installLog += "\nInstalling MarkItDown...\n";
+            var installResult = await Task.Run(() => PythonEnv.InstallMarkItDownAsync(markitdownVenvPath, log =>
+            {
+                installLog += log + "\n";
+                InvokeAsync(StateHasChanged);
+            }));
+
+            installLog += $"\n{installResult.message}\n";
+        }
+        finally
+        {
+            isInstalling = false;
+            installingPackage = string.Empty;
+            AppState.SetStatus("Ready");
+            await CheckEngineVenvStatus();
+            await CheckInstalledPackages();
+            StateHasChanged();
+        }
+    }
+
+    private Task DeleteMarkItDownVenv()
+    {
+        ShowConfirmDialog(
+            "Delete MarkItDown Environment",
+            "Are you sure you want to delete the MarkItDown virtual environment?",
+            "Delete",
+            "btn-danger",
+            async () =>
+            {
+                isInstalling = true;
+                StateHasChanged();
+                var result = await Task.Run(() => PythonEnv.DeleteVenv(markitdownVenvPath));
+                installLog = result.message;
+                isInstalling = false;
+                await CheckEngineVenvStatus();
+                await CheckInstalledPackages();
+                StateHasChanged();
+            });
+        return Task.CompletedTask;
+    }
+
+    private async Task ReinstallMarkItDown()
+    {
+        await Task.Run(() => PythonEnv.DeleteVenv(markitdownVenvPath));
+        await SetupMarkItDown();
+    }
+
+    private async Task SetupDocling()
+    {
+        isInstalling = true;
+        installingPackage = "docling-setup";
+        installLog = "=== Setting up Docling Environment ===\n";
+        AppState.SetStatus("Setting up Docling...", true);
+        StateHasChanged();
+
+        try
+        {
+            installLog += "Creating virtual environment...\n";
+            var venvResult = await Task.Run(() => PythonEnv.CreateVenvAsync(pythonPath, doclingVenvPath, log =>
+            {
+                installLog += log + "\n";
+                InvokeAsync(StateHasChanged);
+            }));
+
+            if (!venvResult.success)
+            {
+                installLog += $"Error: {venvResult.message}\n";
+                return;
+            }
+
+            installLog += "\nInstalling Docling...\n";
+            var installResult = await Task.Run(() => PythonEnv.InstallDoclingAsync(doclingVenvPath, log =>
+            {
+                installLog += log + "\n";
+                InvokeAsync(StateHasChanged);
+            }));
+
+            installLog += $"\n{installResult.message}\n";
+        }
+        finally
+        {
+            isInstalling = false;
+            installingPackage = string.Empty;
+            AppState.SetStatus("Ready");
+            await CheckEngineVenvStatus();
+            await CheckInstalledPackages();
+            StateHasChanged();
+        }
+    }
+
+    private Task DeleteDoclingVenv()
+    {
+        ShowConfirmDialog(
+            "Delete Docling Environment",
+            "Are you sure you want to delete the Docling virtual environment?",
+            "Delete",
+            "btn-danger",
+            async () =>
+            {
+                isInstalling = true;
+                StateHasChanged();
+                var result = await Task.Run(() => PythonEnv.DeleteVenv(doclingVenvPath));
+                installLog = result.message;
+                isInstalling = false;
+                await CheckEngineVenvStatus();
+                await CheckInstalledPackages();
+                StateHasChanged();
+            });
+        return Task.CompletedTask;
+    }
+
+    private async Task ReinstallDocling()
+    {
+        await Task.Run(() => PythonEnv.DeleteVenv(doclingVenvPath));
+        await SetupDocling();
+    }
+
+    private async Task SetupPaddleCpu() => await SetupPaddle(false);
+    private async Task SetupPaddleGpu() => await SetupPaddle(true);
+
+    private async Task SetupPaddle(bool useGpu)
+    {
+        isInstalling = true;
+        installingPackage = useGpu ? "paddle-gpu-setup" : "paddle-cpu-setup";
+        installLog = $"=== Setting up PaddleOCR {(useGpu ? "GPU" : "CPU")} Environment ===\n";
+        AppState.SetStatus($"Setting up PaddleOCR {(useGpu ? "GPU" : "CPU")}...", true);
+        StateHasChanged();
+
+        try
+        {
+            installLog += "Creating virtual environment...\n";
+            var venvResult = await Task.Run(() => PythonEnv.CreateVenvAsync(pythonPath, paddleVenvPath, log =>
+            {
+                installLog += log + "\n";
+                InvokeAsync(StateHasChanged);
+            }));
+
+            if (!venvResult.success)
+            {
+                installLog += $"Error: {venvResult.message}\n";
+                return;
+            }
+
+            installLog += $"\nInstalling PaddleOCR {(useGpu ? "GPU" : "CPU")}...\n";
+            var installResult = useGpu
+                ? await Task.Run(() => PythonEnv.InstallPaddleOcrGpuAsync(paddleVenvPath, log =>
+                {
+                    installLog += log + "\n";
+                    InvokeAsync(StateHasChanged);
+                }))
+                : await Task.Run(() => PythonEnv.InstallPaddleOcrCpuAsync(paddleVenvPath, log =>
+                {
+                    installLog += log + "\n";
+                    InvokeAsync(StateHasChanged);
+                }));
+
+            installLog += $"\n{installResult.message}\n";
+        }
+        finally
+        {
+            isInstalling = false;
+            installingPackage = string.Empty;
+            AppState.SetStatus("Ready");
+            await CheckEngineVenvStatus();
+            await CheckInstalledPackages();
+            StateHasChanged();
+        }
+    }
+
+    private Task DeletePaddleVenv()
+    {
+        ShowConfirmDialog(
+            "Delete PaddleOCR Environment",
+            "Are you sure you want to delete the PaddleOCR virtual environment?",
+            "Delete",
+            "btn-danger",
+            async () =>
+            {
+                isInstalling = true;
+                StateHasChanged();
+                var result = await Task.Run(() => PythonEnv.DeleteVenv(paddleVenvPath));
+                installLog = result.message;
+                isInstalling = false;
+                await CheckEngineVenvStatus();
+                await CheckInstalledPackages();
+                StateHasChanged();
+            });
+        return Task.CompletedTask;
+    }
+
+    #endregion
 
     private async Task CreateVenv()
     {

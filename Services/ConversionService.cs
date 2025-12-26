@@ -48,7 +48,14 @@ public class ConversionService
             // Ensure output directory exists
             Directory.CreateDirectory(outputPath);
 
-            var venvPath = _appState.VirtualEnvPath;
+            // Select venv based on engine type
+            var venvPath = engine switch
+            {
+                ConversionEngine.MarkItDown => _appState.MarkItDownVenvPath,
+                ConversionEngine.Docling or ConversionEngine.DoclingGpu => _appState.DoclingVenvPath,
+                ConversionEngine.PaddleOcrCpu or ConversionEngine.PaddleOcrGpu => _appState.PaddleVenvPath,
+                _ => _appState.MarkItDownVenvPath
+            };
             var pythonPath = _pythonEnv.GetVenvPythonPath(venvPath);
 
             if (!File.Exists(pythonPath))
@@ -56,7 +63,7 @@ public class ConversionService
                 return new ConversionResult
                 {
                     Success = false,
-                    ErrorMessage = "Python virtual environment not configured"
+                    ErrorMessage = $"Python virtual environment not configured for {engine}. Path: {venvPath}"
                 };
             }
 

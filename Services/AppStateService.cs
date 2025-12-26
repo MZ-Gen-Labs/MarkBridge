@@ -29,10 +29,38 @@ public class AppStateService
         set { _settings.SystemPythonPath = value; NotifyStateChanged(); }
     }
 
+    [Obsolete("Use MarkItDownVenvPath, DoclingVenvPath, or PaddleVenvPath instead")]
     public string VirtualEnvPath
     {
         get => _settings.VirtualEnvPath;
         set { _settings.VirtualEnvPath = value; NotifyStateChanged(); }
+    }
+
+    /// <summary>
+    /// Virtual environment path for MarkItDown engine
+    /// </summary>
+    public string MarkItDownVenvPath
+    {
+        get => _settings.MarkItDownVenvPath;
+        set { _settings.MarkItDownVenvPath = value; NotifyStateChanged(); }
+    }
+
+    /// <summary>
+    /// Virtual environment path for Docling engine (PyTorch-based)
+    /// </summary>
+    public string DoclingVenvPath
+    {
+        get => _settings.DoclingVenvPath;
+        set { _settings.DoclingVenvPath = value; NotifyStateChanged(); }
+    }
+
+    /// <summary>
+    /// Virtual environment path for PaddleOCR engine (PaddlePaddle-based, isolated to avoid CUDA conflicts)
+    /// </summary>
+    public string PaddleVenvPath
+    {
+        get => _settings.PaddleVenvPath;
+        set { _settings.PaddleVenvPath = value; NotifyStateChanged(); }
     }
 
     public string DefaultOutputPath
@@ -158,7 +186,11 @@ public class AppStateService
 
     public string StatusMessage { get; private set; } = "Ready";
     public bool IsProcessing { get; private set; }
+    [Obsolete("Use IsMarkItDownVenvActive, IsDoclingVenvActive, or IsPaddleVenvActive instead")]
     public bool IsVenvActive { get; set; }
+    public bool IsMarkItDownVenvActive { get; set; }
+    public bool IsDoclingVenvActive { get; set; }
+    public bool IsPaddleVenvActive { get; set; }
     public string? PythonVersion { get; set; }
     public string? MarkItDownVersion { get; set; }
     public string? DoclingVersion { get; set; }
@@ -241,6 +273,22 @@ public class AppStateService
             _settings.VirtualEnvPath = Path.Combine(appData, "MarkBridge", ".venv");
         }
 
+        // Set default paths for engine-specific venvs
+        var baseAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        var venvBase = Path.Combine(baseAppData, "MarkBridge");
+        if (string.IsNullOrEmpty(_settings.MarkItDownVenvPath))
+        {
+            _settings.MarkItDownVenvPath = Path.Combine(venvBase, ".venv_markitdown");
+        }
+        if (string.IsNullOrEmpty(_settings.DoclingVenvPath))
+        {
+            _settings.DoclingVenvPath = Path.Combine(venvBase, ".venv_docling");
+        }
+        if (string.IsNullOrEmpty(_settings.PaddleVenvPath))
+        {
+            _settings.PaddleVenvPath = Path.Combine(venvBase, ".venv_paddle");
+        }
+
         _isInitialized = true;
         NotifyStateChanged();
     }
@@ -270,7 +318,10 @@ public class AppStateService
 public class AppSettings
 {
     public string SystemPythonPath { get; set; } = string.Empty;
-    public string VirtualEnvPath { get; set; } = string.Empty;
+    public string VirtualEnvPath { get; set; } = string.Empty; // Legacy, kept for migration
+    public string MarkItDownVenvPath { get; set; } = string.Empty;
+    public string DoclingVenvPath { get; set; } = string.Empty;
+    public string PaddleVenvPath { get; set; } = string.Empty;
     public string DefaultOutputPath { get; set; } = string.Empty;
     public bool UseOriginalFolderForOutput { get; set; } = true;
     public bool AutoSaveEnabled { get; set; } = true;
