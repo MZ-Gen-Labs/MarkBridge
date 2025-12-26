@@ -1381,7 +1381,7 @@
         AppState.SetStatus("Installing MarkItDown...", true);
         StateHasChanged();
 
-        var result = await Task.Run(() => PythonEnv.InstallMarkItDownAsync(venvPath, log =>
+        var result = await Task.Run(() => PythonEnv.InstallMarkItDownAsync(markitdownVenvPath, log =>
         {
             installLog += log + "\n";
             InvokeAsync(StateHasChanged);
@@ -1452,7 +1452,7 @@
         AppState.SetStatus("Installing EasyOCR...", true);
         StateHasChanged();
 
-        var result = await Task.Run(() => PythonEnv.InstallEasyOcrAsync(venvPath, log =>
+        var result = await Task.Run(() => PythonEnv.InstallEasyOcrAsync(doclingVenvPath, log =>
         {
             installLog += log + "\n";
             InvokeAsync(StateHasChanged);
@@ -1473,7 +1473,7 @@
         AppState.SetStatus("Installing RapidOCR...", true);
         StateHasChanged();
 
-        var result = await Task.Run(() => PythonEnv.InstallRapidOcrAsync(venvPath, log =>
+        var result = await Task.Run(() => PythonEnv.InstallRapidOcrAsync(doclingVenvPath, log =>
         {
             installLog += log + "\n";
             InvokeAsync(StateHasChanged);
@@ -1495,7 +1495,7 @@
         AppState.SetStatus("Installing PaddleOCR (CPU)...", true);
         StateHasChanged();
 
-        var result = await Task.Run(() => PythonEnv.InstallPaddleOcrCpuAsync(venvPath, log =>
+        var result = await Task.Run(() => PythonEnv.InstallPaddleOcrCpuAsync(paddleVenvPath, log =>
         {
             installLog += log + "\n";
             InvokeAsync(StateHasChanged);
@@ -1517,7 +1517,7 @@
         AppState.SetStatus("Installing PaddleOCR (GPU)...", true);
         StateHasChanged();
 
-        var result = await Task.Run(() => PythonEnv.InstallPaddleOcrGpuAsync(venvPath, log =>
+        var result = await Task.Run(() => PythonEnv.InstallPaddleOcrGpuAsync(paddleVenvPath, log =>
         {
             installLog += log + "\n";
             InvokeAsync(StateHasChanged);
@@ -1539,7 +1539,7 @@
         AppState.SetStatus("Installing CUDA support...", true);
         StateHasChanged();
 
-        var result = await Task.Run(() => PythonEnv.InstallCudaSupportAsync(venvPath, useNightly, log =>
+        var result = await Task.Run(() => PythonEnv.InstallCudaSupportAsync(doclingVenvPath, useNightly, log =>
         {
             installLog += log + "\n";
             InvokeAsync(StateHasChanged);
@@ -1616,7 +1616,7 @@
         AppState.SetStatus("Uninstalling MarkItDown...", true);
         StateHasChanged();
 
-        var result = await Task.Run(() => PythonEnv.UninstallMarkItDownAsync(venvPath, log =>
+        var result = await Task.Run(() => PythonEnv.UninstallMarkItDownAsync(markitdownVenvPath, log =>
         {
             installLog += log + "\n";
             InvokeAsync(StateHasChanged);
@@ -1638,7 +1638,7 @@
         AppState.SetStatus("Uninstalling Docling...", true);
         StateHasChanged();
 
-        var result = await Task.Run(() => PythonEnv.UninstallDoclingAsync(venvPath, log =>
+        var result = await Task.Run(() => PythonEnv.UninstallDoclingAsync(doclingVenvPath, log =>
         {
             installLog += log + "\n";
             InvokeAsync(StateHasChanged);
@@ -1660,7 +1660,7 @@
         AppState.SetStatus("Uninstalling EasyOCR...", true);
         StateHasChanged();
 
-        var result = await Task.Run(() => PythonEnv.UninstallEasyOcrAsync(venvPath, log =>
+        var result = await Task.Run(() => PythonEnv.UninstallEasyOcrAsync(doclingVenvPath, log =>
         {
             installLog += log + "\n";
             InvokeAsync(StateHasChanged);
@@ -1682,7 +1682,7 @@
         AppState.SetStatus("Uninstalling RapidOCR...", true);
         StateHasChanged();
 
-        var result = await Task.Run(() => PythonEnv.UninstallRapidOcrAsync(venvPath, log =>
+        var result = await Task.Run(() => PythonEnv.UninstallRapidOcrAsync(doclingVenvPath, log =>
         {
             installLog += log + "\n";
             InvokeAsync(StateHasChanged);
@@ -1704,7 +1704,7 @@
         AppState.SetStatus("Uninstalling PaddleOCR (CPU)...", true);
         StateHasChanged();
 
-        var result = await Task.Run(() => PythonEnv.UninstallPaddleOcrCpuAsync(venvPath, log =>
+        var result = await Task.Run(() => PythonEnv.UninstallPaddleOcrCpuAsync(paddleVenvPath, log =>
         {
             installLog += log + "\n";
             InvokeAsync(StateHasChanged);
@@ -1726,7 +1726,7 @@
         AppState.SetStatus("Uninstalling PaddleOCR (GPU)...", true);
         StateHasChanged();
 
-        var result = await Task.Run(() => PythonEnv.UninstallPaddleOcrGpuAsync(venvPath, log =>
+        var result = await Task.Run(() => PythonEnv.UninstallPaddleOcrGpuAsync(paddleVenvPath, log =>
         {
             installLog += log + "\n";
             InvokeAsync(StateHasChanged);
@@ -1768,7 +1768,7 @@
 
         // First uninstall CPU version
         installLog += "=== Uninstalling CPU version ===\n";
-        var uninstallResult = await Task.Run(() => PythonEnv.UninstallPaddleOcrCpuAsync(venvPath, log =>
+        var uninstallResult = await Task.Run(() => PythonEnv.UninstallPaddleOcrCpuAsync(paddleVenvPath, log =>
         {
             installLog += log + "\n";
             InvokeAsync(StateHasChanged);
@@ -1777,7 +1777,7 @@
 
         // Then install GPU version
         installLog += "=== Installing GPU version ===\n";
-        var installResult = await Task.Run(() => PythonEnv.InstallPaddleOcrGpuAsync(venvPath, log =>
+        var installResult = await Task.Run(() => PythonEnv.InstallPaddleOcrGpuAsync(paddleVenvPath, log =>
         {
             installLog += log + "\n";
             InvokeAsync(StateHasChanged);
@@ -1804,7 +1804,7 @@
 
         // First uninstall GPU version
         installLog += "=== Uninstalling GPU version ===\n";
-        var uninstallResult = await Task.Run(() => PythonEnv.UninstallPaddleOcrGpuAsync(venvPath, log =>
+        var uninstallResult = await Task.Run(() => PythonEnv.UninstallPaddleOcrGpuAsync(paddleVenvPath, log =>
         {
             installLog += log + "\n";
             InvokeAsync(StateHasChanged);
@@ -1813,7 +1813,7 @@
 
         // Then install CPU version
         installLog += "=== Installing CPU version ===\n";
-        var installResult = await Task.Run(() => PythonEnv.InstallPaddleOcrCpuAsync(venvPath, log =>
+        var installResult = await Task.Run(() => PythonEnv.InstallPaddleOcrCpuAsync(paddleVenvPath, log =>
         {
             installLog += log + "\n";
             InvokeAsync(StateHasChanged);
