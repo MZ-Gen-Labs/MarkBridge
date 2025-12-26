@@ -273,19 +273,20 @@ public class AppStateService
             _settings.VirtualEnvPath = Path.Combine(appData, "MarkBridge", ".venv");
         }
 
-        // Phase 1: All engine venvs point to the same .venv for backward compatibility
-        // Phase 2 will separate them into .venv_markitdown, .venv_docling, .venv_paddle
+        // Phase 2: Separate venvs for each engine to avoid CUDA/dependency conflicts
+        var baseAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        var venvBase = Path.Combine(baseAppData, "MarkBridge");
         if (string.IsNullOrEmpty(_settings.MarkItDownVenvPath))
         {
-            _settings.MarkItDownVenvPath = _settings.VirtualEnvPath;
+            _settings.MarkItDownVenvPath = Path.Combine(venvBase, ".venv_markitdown");
         }
         if (string.IsNullOrEmpty(_settings.DoclingVenvPath))
         {
-            _settings.DoclingVenvPath = _settings.VirtualEnvPath;
+            _settings.DoclingVenvPath = Path.Combine(venvBase, ".venv_docling");
         }
         if (string.IsNullOrEmpty(_settings.PaddleVenvPath))
         {
-            _settings.PaddleVenvPath = _settings.VirtualEnvPath;
+            _settings.PaddleVenvPath = Path.Combine(venvBase, ".venv_paddle");
         }
 
         _isInitialized = true;
