@@ -181,7 +181,7 @@
     <!-- Action Buttons -->
     <div class="d-flex gap-2 mb-3">
         <button class="btn btn-primary" @onclick="StartConversion" 
-                disabled="@(queueItems.Count == 0 || isConverting || !AppState.IsVenvActive || !HasEngineSelected)">
+                disabled="@(queueItems.Count == 0 || isConverting || !(AppState.IsMarkItDownVenvActive || AppState.IsDoclingVenvActive || AppState.IsPaddleVenvActive) || !HasEngineSelected)">
             @if (isConverting)
             {
                 <span class="spinner-border spinner-border-sm me-1"></span>

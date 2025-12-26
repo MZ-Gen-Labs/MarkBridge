@@ -446,9 +446,6 @@
 
     // Venv (Legacy - for backward compatibility)
     private string venvPath = string.Empty;
-    private string venvStatus = "Not configured";
-    private string venvStatusClass = "status-warning";
-    private string venvStatusIcon = "bi-exclamation-triangle";
     private bool venvExists = false;
     private bool isVenvProcessing = false;
     private string venvLog = string.Empty;
@@ -508,7 +505,7 @@
 
         // Load current settings
         pythonPath = AppState.SystemPythonPath;
-        venvPath = AppState.VirtualEnvPath;
+        venvPath = AppState.MarkItDownVenvPath;  // Use MarkItDown venv as default
         autoSaveEnabled = AppState.AutoSaveEnabled;
         language = AppState.Language;
         theme = AppState.Theme;
@@ -793,29 +790,19 @@
 
     private async Task CheckVenvStatus()
     {
+        // Redirect to engine-specific check
+        await CheckEngineVenvStatus();
+        
+        // Also check legacy venv path for backward compatibility
         if (string.IsNullOrEmpty(venvPath))
         {
-            venvPath = AppState.VirtualEnvPath;
+            venvPath = AppState.MarkItDownVenvPath; // Use MarkItDown as default
         }
-
         venvExists = PythonEnv.IsVenvValid(venvPath);
 
         if (venvExists)
         {
-            venvStatus = "Ready to use";
-            venvStatusClass = "status-ready";
-            venvStatusIcon = "bi-check-circle-fill";
-            AppState.IsVenvActive = true;
-
-            // Check installed packages
             await CheckInstalledPackages();
-        }
-        else
-        {
-            venvStatus = "Virtual environment not found";
-            venvStatusClass = "status-warning";
-            venvStatusIcon = "bi-exclamation-triangle";
-            AppState.IsVenvActive = false;
         }
 
         StateHasChanged();
@@ -1066,7 +1053,7 @@
 
         if (result.success)
         {
-            AppState.VirtualEnvPath = venvPath;
+            AppState.MarkItDownVenvPath = venvPath;
             venvLog += "\n" + result.message;
         }
         else
