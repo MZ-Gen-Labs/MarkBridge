@@ -56,8 +56,16 @@
             @if (pyInstallerAvailable)
             {
                 <div class="mt-4">
-                    <h6 class="fw-bold mb-3"><i class="bi bi-list-check me-2"></i>Python Version Manager</h6>
-                    <table class="table table-sm table-hover">
+                    <div class="d-flex align-items-center justify-content-between" style="cursor: pointer;" @onclick="() => isPythonVersionManagerExpanded = !isPythonVersionManagerExpanded">
+                        <h6 class="fw-bold mb-0">
+                            <i class="bi @(isPythonVersionManagerExpanded ? "bi-chevron-down" : "bi-chevron-right") me-2"></i>
+                            Python Version Manager
+                        </h6>
+                        <span class="badge bg-secondary">@pythonVersions.Count versions</span>
+                    </div>
+                    @if (isPythonVersionManagerExpanded)
+                    {
+                    <table class="table table-sm table-hover mt-2">
                         <thead>
                             <tr>
                                 <th>Version</th>
@@ -135,6 +143,7 @@
                         }
                         <i class="bi bi-arrow-clockwise"></i> Refresh
                     </button>
+                    }
                 </div>
             }
         </div>
@@ -474,6 +483,7 @@
     private string pythonStatusIcon = string.Empty;
     private bool isDetecting = false;
     private bool showPythonDownload = false;
+    private bool isPythonVersionManagerExpanded = false; // Default: collapsed
     
     // Python Install Manager
     private bool pyInstallerAvailable = false;
