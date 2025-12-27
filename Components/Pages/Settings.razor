@@ -254,7 +254,13 @@
                             @if (doclingVenvExists && doclingInstalled)
                             {
                                 <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Ready v@(doclingVersion)</span>
-                                @if (cudaInstalled) { <span class="badge bg-info"><i class="bi bi-gpu-card me-1"></i>CUDA @cudaVersion</span> }
+                                @if (cudaInstalled) 
+                                { 
+                                    var isNightly = cudaVersion?.StartsWith("12.8") == true || cudaVersion?.StartsWith("12.9") == true;
+                                    <span class="badge @(isNightly ? "bg-warning text-dark" : "bg-info")">
+                                        <i class="bi bi-gpu-card me-1"></i>CUDA @cudaVersion @(isNightly ? "(Nightly)" : "")
+                                    </span>
+                                }
                             }
                             else if (doclingVenvExists)
                             {
@@ -275,10 +281,10 @@
                     </div>
                     @if (doclingVenvExists && doclingInstalled)
                     {
-                        <div class="ms-3 mb-2 small">
-                            <span class="@(easyocrInstalled ? "text-success" : "text-muted") me-3"><i class="bi @(easyocrInstalled ? "bi-check-circle-fill" : "bi-circle")"></i> EasyOCR</span>
-                            <span class="@(rapidocrInstalled ? "text-success" : "text-muted") me-3"><i class="bi @(rapidocrInstalled ? "bi-check-circle-fill" : "bi-circle")"></i> RapidOCR</span>
-                            <span class="@(cudaInstalled ? "text-success" : "text-muted")"><i class="bi @(cudaInstalled ? "bi-check-circle-fill" : "bi-circle")"></i> PyTorch CUDA</span>
+                        <div class="d-flex justify-content-end mb-2 small gap-3">
+                            <span class="@(easyocrInstalled ? "text-success" : "text-muted")"><i class="bi @(easyocrInstalled ? "bi-check-circle-fill" : "bi-circle")"></i> EasyOCR</span>
+                            <span class="@(rapidocrInstalled ? "text-success" : "text-muted")"><i class="bi @(rapidocrInstalled ? "bi-check-circle-fill" : "bi-circle")"></i> RapidOCR</span>
+                            <span class="@(cudaInstalled ? "text-success" : "text-muted")"><i class="bi @(cudaInstalled ? "bi-check-circle-fill" : "bi-circle")"></i> PyTorch CUDA @(cudaVersion ?? "")</span>
                         </div>
                         <div class="d-flex gap-2 flex-wrap mb-2 justify-content-end">
                             <button class="btn btn-outline-secondary btn-sm" @onclick="InstallEasyOcr" disabled="@isInstalling">
