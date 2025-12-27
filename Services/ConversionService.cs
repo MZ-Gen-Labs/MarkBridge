@@ -294,6 +294,11 @@ public class ConversionService
                     sb.Append(" --force-ocr");
                 }
             }
+            else
+            {
+                // Explicitly disable OCR
+                sb.Append(" --no-ocr");
+            }
 
             // Image export mode: none (placeholder), embedded (base64), or external files (referenced)
             var imageMode = options.ImageExportMode switch
