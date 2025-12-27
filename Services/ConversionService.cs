@@ -397,6 +397,11 @@ public class ConversionService
             args.Append(" --force-ocr");
         }
         
+        if (!options.EnableOcr)
+        {
+            args.Append(" --no-ocr");
+        }
+        
         var imageMode = options.ImageExportMode switch
         {
             ImageExportMode.Embedded => "embedded",

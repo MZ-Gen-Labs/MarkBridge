@@ -91,7 +91,7 @@ def download_models_if_needed():
     return True
 
 
-def convert_document(input_path, output_path, use_gpu=False, force_ocr=False, image_mode="placeholder"):
+def convert_document(input_path, output_path, use_gpu=False, force_ocr=False, enable_ocr=True, image_mode="placeholder"):
     """Convert document using Docling with PP-OCRv5 models for OCR"""
     from docling.document_converter import DocumentConverter, PdfFormatOption
     from docling.datamodel.pipeline_options import PdfPipelineOptions
@@ -123,8 +123,9 @@ def convert_document(input_path, output_path, use_gpu=False, force_ocr=False, im
     
     # Configure PDF pipeline options
     pipeline_options = PdfPipelineOptions()
-    pipeline_options.do_ocr = True
-    pipeline_options.ocr_options = rapidocr_options
+    pipeline_options.do_ocr = enable_ocr  # Control OCR via parameter
+    if enable_ocr:
+        pipeline_options.ocr_options = rapidocr_options
     
     # Image export mode
     if image_mode in ("embedded", "referenced"):
@@ -241,6 +242,7 @@ def main():
     parser.add_argument('output_file', help='Output Markdown file path')
     parser.add_argument('--gpu', action='store_true', help='Use GPU acceleration')
     parser.add_argument('--force-ocr', action='store_true', help='Force OCR on all pages')
+    parser.add_argument('--no-ocr', action='store_true', help='Disable OCR')
     parser.add_argument('--image-mode', choices=['placeholder', 'embedded', 'referenced'], 
                        default='placeholder', help='Image export mode')
     parser.add_argument('--download-models', action='store_true', help='Download models only')
@@ -273,6 +275,7 @@ def main():
             args.output_file,
             use_gpu=args.gpu,
             force_ocr=args.force_ocr,
+            enable_ocr=not args.no_ocr,
             image_mode=args.image_mode
         )
         
