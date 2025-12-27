@@ -284,6 +284,7 @@
                         <div class="d-flex justify-content-end mb-2 small gap-3">
                             <span class="@(easyocrInstalled ? "text-success" : "text-muted")"><i class="bi @(easyocrInstalled ? "bi-check-circle-fill" : "bi-circle")"></i> EasyOCR</span>
                             <span class="@(rapidocrInstalled ? "text-success" : "text-muted")"><i class="bi @(rapidocrInstalled ? "bi-check-circle-fill" : "bi-circle")"></i> RapidOCR</span>
+                            <span class="@(rapidocrV5Installed ? "text-success" : "text-muted")"><i class="bi @(rapidocrV5Installed ? "bi-star-fill text-warning" : "bi-star")"></i> RapidOCR v5</span>
                             <span class="@(cudaInstalled ? "text-success" : "text-muted")"><i class="bi @(cudaInstalled ? "bi-check-circle-fill" : "bi-circle")"></i> PyTorch CUDA @(cudaVersion ?? "")</span>
                         </div>
                         <div class="d-flex gap-2 flex-wrap mb-2 justify-content-end">
@@ -294,6 +295,10 @@
                             <button class="btn btn-outline-secondary btn-sm" @onclick="InstallRapidOcr" disabled="@isInstalling">
                                 @if (isInstalling && installingPackage == "rapidocr") { <span class="spinner-border spinner-border-sm me-1"></span> }
                                 <i class="bi bi-download me-1"></i>@(rapidocrInstalled ? "Update" : "Add") RapidOCR
+                            </button>
+                            <button class="btn btn-outline-warning btn-sm" @onclick="InstallRapidOcrV5" disabled="@isInstalling" title="PP-OCRv5 models for Japanese">
+                                @if (isInstalling && installingPackage == "rapidocr-v5") { <span class="spinner-border spinner-border-sm me-1"></span> }
+                                <i class="bi bi-star-fill me-1"></i>@(rapidocrV5Installed ? "Update" : "Add") RapidOCR v5
                             </button>
                             <button class="btn btn-outline-secondary btn-sm" @onclick="() => InstallCuda(false)" disabled="@isInstalling" title="CUDA 12.4">
                                 @if (isInstalling && installingPackage == "cuda") { <span class="spinner-border spinner-border-sm me-1"></span> }
@@ -540,6 +545,8 @@
     private string? easyocrVersion;
     private bool rapidocrInstalled = false;
     private string? rapidocrVersion;
+    private bool rapidocrV5Installed = false;
+    private string? rapidocrV5Version;
     private bool paddleOcrInstalled = false;
     private string? paddleOcrVersion;
     private bool paddleCpuInstalled = false;
@@ -1362,6 +1369,10 @@
         rapidocrInstalled = rapidocr.installed;
         rapidocrVersion = rapidocr.version;
 
+        var rapidocrv5 = await PythonEnv.CheckRapidOcrV5Async(doclingVenvPath);
+        rapidocrV5Installed = rapidocrv5.installed;
+        rapidocrV5Version = rapidocrv5.version;
+
         var cuda = await PythonEnv.CheckCudaAsync(doclingVenvPath);
         cudaInstalled = cuda.installed;
         torchVersion = cuda.torchVersion;
@@ -1480,6 +1491,28 @@
         StateHasChanged();
 
         var result = await Task.Run(() => PythonEnv.InstallRapidOcrAsync(doclingVenvPath, log =>
+        {
+            installLog += log + "\n";
+            InvokeAsync(StateHasChanged);
+        }));
+
+        installLog += "\n" + result.message;
+        isInstalling = false;
+        installingPackage = string.Empty;
+        AppState.SetStatus("Ready");
+        await CheckInstalledPackages();
+        StateHasChanged();
+    }
+
+    private async Task InstallRapidOcrV5()
+    {
+        isInstalling = true;
+        installingPackage = "rapidocr-v5";
+        installLog = string.Empty;
+        AppState.SetStatus("Installing RapidOCR v5 (PP-OCRv5)...", true);
+        StateHasChanged();
+
+        var result = await Task.Run(() => PythonEnv.InstallRapidOcrV5Async(doclingVenvPath, log =>
         {
             installLog += log + "\n";
             InvokeAsync(StateHasChanged);

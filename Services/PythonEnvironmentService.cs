@@ -368,6 +368,140 @@ public class PythonEnvironmentService
     }
 
     /// <summary>
+    /// Check if RapidOCR v5 (PP-OCRv5 models) is installed
+    /// </summary>
+    public async Task<(bool installed, string? version)> CheckRapidOcrV5Async(string venvPath)
+    {
+        // Check if rapidocr_onnxruntime is installed
+        var result = await CheckPackageAsync(venvPath, "rapidocr-onnxruntime");
+        if (!result.installed)
+        {
+            return (false, null);
+        }
+        
+        // Check if PP-OCRv5 models are downloaded
+        var modelsDir = GetRapidOcrV5ModelsDir();
+        var modelFiles = new[] { "PP-OCRv5_server_det_infer.onnx", "PP-OCRv5_server_rec_infer.onnx" };
+        foreach (var file in modelFiles)
+        {
+            if (!File.Exists(Path.Combine(modelsDir, file)))
+            {
+                return (false, result.version);  // Package installed but models not downloaded
+            }
+        }
+        
+        return (true, result.version);
+    }
+    
+    /// <summary>
+    /// Get the directory for RapidOCR v5 models
+    /// </summary>
+    public string GetRapidOcrV5ModelsDir()
+    {
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        return Path.Combine(localAppData, "MarkBridge", "models", "rapidocr_v5");
+    }
+
+    /// <summary>
+    /// Install RapidOCR v5 with PP-OCRv5 models (high-accuracy Japanese OCR)
+    /// </summary>
+    public async Task<(bool success, string message)> InstallRapidOcrV5Async(string venvPath, Action<string>? onProgress = null)
+    {
+        var pythonPath = GetVenvPythonPath(venvPath);
+        
+        // 1. Install rapidocr_onnxruntime and dependencies
+        onProgress?.Invoke("Installing rapidocr_onnxruntime...");
+        var result = await RunPipCommandAsync(pythonPath, "install rapidocr_onnxruntime", onProgress);
+        if (result.exitCode != 0)
+        {
+            return (false, $"Failed to install rapidocr_onnxruntime: {result.error}");
+        }
+        
+        // 2. Install huggingface_hub for model download
+        onProgress?.Invoke("Installing huggingface_hub...");
+        var hfResult = await RunPipCommandAsync(pythonPath, "install huggingface_hub", onProgress);
+        if (hfResult.exitCode != 0)
+        {
+            return (false, $"Failed to install huggingface_hub: {hfResult.error}");
+        }
+        
+        // 3. Install numpy, opencv-python-headless, pymupdf for image processing
+        onProgress?.Invoke("Installing image processing dependencies...");
+        var imgResult = await RunPipCommandAsync(pythonPath, "install numpy opencv-python-headless pymupdf", onProgress);
+        if (imgResult.exitCode != 0)
+        {
+            return (false, $"Failed to install image dependencies: {imgResult.error}");
+        }
+        
+        // 4. Download PP-OCRv5 models using the Python script
+        onProgress?.Invoke("Downloading PP-OCRv5 models from HuggingFace...");
+        var scriptPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Resources", "Python", "rapidocr_v5_convert.py");
+        // Fallback for development
+        if (!File.Exists(scriptPath))
+        {
+            var projectDir = Path.GetDirectoryName(Path.GetDirectoryName(Path.GetDirectoryName(AppDomain.CurrentDomain.BaseDirectory)));
+            if (projectDir != null)
+                scriptPath = Path.Combine(projectDir, "Resources", "Python", "rapidocr_v5_convert.py");
+        }
+        
+        if (!File.Exists(scriptPath))
+        {
+            return (false, "rapidocr_v5_convert.py script not found.");
+        }
+        
+        var dlResult = await RunPythonScriptAsync(pythonPath, $"\"{scriptPath}\" --download-models", onProgress);
+        if (dlResult.exitCode != 0)
+        {
+            return (false, $"Failed to download PP-OCRv5 models: {dlResult.error}");
+        }
+        
+        return (true, "RapidOCR v5 with PP-OCRv5 models installed successfully.");
+    }
+    
+    private async Task<(int exitCode, string output, string error)> RunPythonScriptAsync(
+        string pythonPath, string args, Action<string>? onProgress = null)
+    {
+        var psi = new ProcessStartInfo
+        {
+            FileName = pythonPath,
+            Arguments = args,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+        psi.EnvironmentVariables["PYTHONUNBUFFERED"] = "1";
+
+        using var process = new Process { StartInfo = psi };
+        var output = new StringBuilder();
+        var error = new StringBuilder();
+
+        process.OutputDataReceived += (s, e) =>
+        {
+            if (e.Data != null)
+            {
+                output.AppendLine(e.Data);
+                onProgress?.Invoke(e.Data);
+            }
+        };
+        process.ErrorDataReceived += (s, e) =>
+        {
+            if (e.Data != null)
+            {
+                error.AppendLine(e.Data);
+            }
+        };
+
+        process.Start();
+        process.BeginOutputReadLine();
+        process.BeginErrorReadLine();
+
+        await process.WaitForExitAsync();
+
+        return (process.ExitCode, output.ToString(), error.ToString());
+    }
+
+    /// <summary>
     /// Check if PaddleOCR is installed
     /// </summary>
     public async Task<(bool installed, string? version)> CheckPaddleOcrAsync(string venvPath)

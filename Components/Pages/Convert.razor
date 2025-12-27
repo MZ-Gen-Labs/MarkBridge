@@ -104,6 +104,14 @@
                                    disabled="@(!enableOcr || (!useDocling && !useDoclingGpu))">
                             <label class="form-check-label small" for="useRapidOcr">RapidOCR (faster, lightweight)</label>
                         </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="useRapidOcrV5"
+                                   checked="@useRapidOcrV5" @onchange="e => useRapidOcrV5 = (bool)(e.Value ?? false)"
+                                   disabled="@(!enableOcr || (!useDocling && !useDoclingGpu))">
+                            <label class="form-check-label small" for="useRapidOcrV5">
+                                <i class="bi bi-star-fill text-warning"></i> RapidOCR v5 (Japanese optimized)
+                            </label>
+                        </div>
                     </div>
                     <div class="mt-2">
                         <label class="form-label small mb-1">Image Export:</label>
@@ -379,6 +387,11 @@
         get => AppState.UseRapidOcr;
         set => AppState.UseRapidOcr = value;
     }
+    private bool useRapidOcrV5
+    {
+        get => AppState.UseRapidOcrV5;
+        set => AppState.UseRapidOcrV5 = value;
+    }
     
     // Output options - now bound to AppState for persistence
     private bool useOriginalFolder
@@ -534,6 +547,7 @@
         var ocrEngines = new List<string>();
         if (useEasyOcr) ocrEngines.Add("easyocr");
         if (useRapidOcr) ocrEngines.Add("rapidocr");
+        if (useRapidOcrV5) ocrEngines.Add("rapidocr_v5");
         return ocrEngines;
     }
 
@@ -789,6 +803,7 @@
                             ImageExportMode = imageExportMode,
                             UseEasyOcr = item.OcrEngine == "easyocr" || (string.IsNullOrEmpty(item.OcrEngine) && useEasyOcr),
                             UseRapidOcr = item.OcrEngine == "rapidocr" || (string.IsNullOrEmpty(item.OcrEngine) && useRapidOcr),
+                            UseRapidOcrV5 = item.OcrEngine == "rapidocr_v5" || (string.IsNullOrEmpty(item.OcrEngine) && useRapidOcrV5),
                             OutputOverwriteMode = outputOverwriteMode
                         };
 

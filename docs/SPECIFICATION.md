@@ -82,7 +82,7 @@ MarkBridgeは、Microsoft製「MarkItDown」ライブラリおよびDoclingを�
 #### 拡張子命名規則
 
 ```
-ファイル名_[エンジン][c/g][e/r].md
+ファイル名_[エンジン][c/g][e/r/v].md
 ```
 
 | 記号 | 意味 |
@@ -91,20 +91,23 @@ MarkBridgeは、Microsoft製「MarkItDown」ライブラリおよびDoclingを�
 | `g` | GPU版 |
 | `e` | EasyOCR使用 |
 | `r` | RapidOCR使用 |
+| `v` | RapidOCR v5使用 |
 
 **Docling + OCRエンジンの例:**
 - `_dlce.md` = Docling CPU + EasyOCR
 - `_dlcr.md` = Docling CPU + RapidOCR
 - `_dlge.md` = Docling GPU + EasyOCR
 - `_dlgr.md` = Docling GPU + RapidOCR
+- `_dlgv.md` = Docling GPU + RapidOCR v5
 
 #### エンジンオプション（Docling選択時のみ有効）
 
 - **Enable OCR**: スキャンPDF用文字認識
   - **Force OCR**: 全ページに強制的にOCR処理を適用（`--force-ocr`）
-- **OCR Engine**: 下記から選択（両方選択で2つのキューアイテム作成）
+- **OCR Engine**: 下記から選択（複数選択で複数のキューアイテム作成）
   - EasyOCR (GPU, 80+ languages) - 深層学習ベース高精度
   - RapidOCR (faster, lightweight) - 軽量高速
+  - **RapidOCR v5 (Japanese optimized)** - PP-OCRv5モデル使用、日本語高精度
 - **Image Export**: 画像エクスポートモード
   - None: 画像なし（プレースホルダーのみ）
   - Embedded: Base64でMarkdown内に埋め込み
@@ -112,14 +115,17 @@ MarkBridgeは、Microsoft製「MarkItDown」ライブラリおよびDoclingを�
 
 #### OCRエンジン仕様
 
-Doclingでは2種類のOCRエンジンを選択可能。日本語と英語を同時認識（`--ocr-lang ja,en`）。
+Doclingでは3種類のOCRエンジンを選択可能。日本語と英語を同時認識（`--ocr-lang ja,en`）。
 
-| エンジン | 精度 | 速度 | GPU対応 | 特徴 |
-|----------|------|------|---------|------|
-| **EasyOCR** | ⭐⭐⭐⭐ | ⭐⭐⭐ | ✅ CUDA | 深層学習ベース、80言語以上 |
-| **RapidOCR** | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ | 部分的 | 軽量高速、PaddleOCRベース |
+| エンジン | 精度 | 速度 | 日本語 | 特徴 |
+|----------|------|------|--------|------|
+| **EasyOCR** | ⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐ | 深層学習ベース、80言語以上 |
+| **RapidOCR** | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ | 軽量高速、PP-OCRv3ベース |
+| **RapidOCR v5** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | PP-OCRv5モデル、18K文字辞書、日本語最適化 |
 
-> **両方選択時の動作:** EasyOCRとRapidOCRの両方をチェックすると、同一ファイルに対して2つの変換キューアイテムが作成され、それぞれのOCRエンジンで処理される。
+> **RapidOCR v5について:** Doclingパイプライン内でRapidOCRエンジンにPP-OCRv5モデルを設定して使用。テーブル構造認識（TableFormer）を維持しつつ、高精度な日本語OCRを実現。
+
+> **複数選択時の動作:** 複数のOCRエンジンをチェックすると、同一ファイルに対して複数の変換キューアイテムが作成され、それぞれのOCRエンジンで処理される。
 
 **Force OCR:**
 全ページに対して強制的にOCR処理を適用。スキャンPDFや画像埋め込みPDFに有効。処理時間は長くなるが精度向上。
@@ -353,3 +359,44 @@ Import-Certificate -FilePath ".\MarkBridge_Dev.cer" -CertStoreLocation Cert:\Cur
 ```
 
 `csproj`のPostBuildターゲットにより、Debugビルド後に自動署名される。
+
+---
+
+## 8. テストフレームワーク
+
+### 8.1 構成
+
+Python環境構築・OCR変換スクリプトのテスト用フレームワーク。
+
+```
+Tests/
+├── test_config.py      # 共通設定（パス定義・ヘルパー）
+├── run_tests.py        # 統合テストランナー
+├── test_*.py           # 各テストスクリプト
+├── Fixtures/           # テスト用固定ファイル
+└── Output/             # テスト出力（.gitignore対象）
+```
+
+### 8.2 本体スクリプトとの連携
+
+`test_config.py`で`Resources/Python/`をパスに追加し、本体スクリプトを直接インポート:
+
+```python
+import test_config  # パス設定
+import docling_v5_convert  # 本体スクリプト
+```
+
+### 8.3 実行方法
+
+```powershell
+cd Tests
+& "$env:LOCALAPPDATA\MarkBridge\.venv_docling\Scripts\python.exe" run_tests.py
+```
+
+### 8.4 テスト一覧
+
+| テスト | 説明 |
+|--------|------|
+| `test_environment.py` | Python環境・パッケージ診断 |
+| `test_rapidocr_v5.py` | PP-OCRv5スタンドアロンテスト |
+| `test_docling_v5.py` | Docling+PP-OCRv5統合テスト |

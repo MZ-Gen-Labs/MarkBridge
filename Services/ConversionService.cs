@@ -76,10 +76,22 @@ public class ConversionService
                     break;
                 case ConversionEngine.Docling:
                 case ConversionEngine.DoclingGpu:
-                    var doclingResult = await RunDoclingAsync(pythonPath, inputPath, fullOutputPath, options, 
-                        engine == ConversionEngine.DoclingGpu, cancellationToken, onProgress);
-                    result = doclingResult.output;
-                    doclingOutputPath = doclingResult.outputFilePath;
+                    // If RapidOCR v5 is selected, use Docling pipeline with PP-OCRv5 models for OCR
+                    if (options.UseRapidOcrV5 && options.EnableOcr)
+                    {
+                        // Use Docling with RapidOCR configured to use PP-OCRv5 models
+                        // This maintains table structure recognition while using high-accuracy PP-OCRv5 for OCR
+                        result = await RunRapidOcrV5Async(pythonPath, inputPath, fullOutputPath, options, 
+                            engine == ConversionEngine.DoclingGpu, cancellationToken, onProgress);
+                        doclingOutputPath = File.Exists(fullOutputPath) ? fullOutputPath : null;
+                    }
+                    else
+                    {
+                        var doclingResult = await RunDoclingAsync(pythonPath, inputPath, fullOutputPath, options, 
+                            engine == ConversionEngine.DoclingGpu, cancellationToken, onProgress);
+                        result = doclingResult.output;
+                        doclingOutputPath = doclingResult.outputFilePath;
+                    }
                     break;
                 case ConversionEngine.PaddleOcrCpu:
                     result = await RunPaddleOcrAsync(pythonPath, inputPath, fullOutputPath, false, cancellationToken, onProgress);
@@ -160,18 +172,22 @@ public class ConversionService
             _ => ""
         };
         
-        // Append OCR engine suffix for Docling (e = EasyOCR, r = RapidOCR)
+        // Append OCR engine suffix for Docling (e = EasyOCR, r = RapidOCR, v = RapidOCR v5)
         if (engine == ConversionEngine.Docling || engine == ConversionEngine.DoclingGpu)
         {
-            if (options?.UseEasyOcr == true && options?.UseRapidOcr != true)
+            if (options?.UseEasyOcr == true && options?.UseRapidOcr != true && options?.UseRapidOcrV5 != true)
             {
                 suffix += "e";
             }
-            else if (options?.UseRapidOcr == true && options?.UseEasyOcr != true)
+            else if (options?.UseRapidOcrV5 == true && options?.UseEasyOcr != true && options?.UseRapidOcr != true)
+            {
+                suffix += "v";
+            }
+            else if (options?.UseRapidOcr == true && options?.UseEasyOcr != true && options?.UseRapidOcrV5 != true)
             {
                 suffix += "r";
             }
-            // If both or neither, don't add OCR suffix
+            // If multiple or none, don't add OCR suffix
         }
         
         return $"{baseName}{suffix}.md";
@@ -244,15 +260,27 @@ public class ConversionService
             return ("Docling CLI not found. Please install Docling first.", null);
         }
 
-        // Create unique temp output directory to avoid conflicts in parallel processing
-        var tempOutputDir = Path.Combine(Path.GetTempPath(), $"docling_{Guid.NewGuid():N}");
+        // Create unique temp directory to avoid conflicts in parallel processing
+        var tempDir = Path.Combine(Path.GetTempPath(), $"docling_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        
+        // Separate input and output temp directories
+        var tempInputDir = Path.Combine(tempDir, "input");
+        var tempOutputDir = Path.Combine(tempDir, "output");
+        Directory.CreateDirectory(tempInputDir);
         Directory.CreateDirectory(tempOutputDir);
 
         try
         {
+            // Copy input file to temp directory to avoid file access conflicts
+            // when multiple engines process the same file simultaneously
+            var inputFileName = Path.GetFileName(inputPath);
+            var tempInputPath = Path.Combine(tempInputDir, inputFileName);
+            File.Copy(inputPath, tempInputPath);
+            
             // Build docling command arguments
             var sb = new StringBuilder();
-            sb.Append($"\"{inputPath}\" --to md --output \"{tempOutputDir}\"");
+            sb.Append($"\"{tempInputPath}\" --to md --output \"{tempOutputDir}\"");
 
             if (options.EnableOcr)
             {
@@ -320,13 +348,66 @@ public class ConversionService
             // Cleanup temp directory
             try
             {
-                if (Directory.Exists(tempOutputDir))
+                if (Directory.Exists(tempDir))
                 {
-                    Directory.Delete(tempOutputDir, true);
+                    Directory.Delete(tempDir, true);
                 }
             }
             catch { }
         }
+    }
+
+    private async Task<string> RunRapidOcrV5Async(
+        string pythonPath,
+        string inputPath,
+        string outputPath,
+        ConversionOptions options,
+        bool useGpu,
+        CancellationToken cancellationToken,
+        Action<string>? onProgress)
+    {
+        // Use docling_v5_convert.py which uses Docling's pipeline with RapidOCR configured to use PP-OCRv5 models
+        // This maintains table structure recognition while using high-accuracy PP-OCRv5 for OCR
+        var scriptPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Resources", "Python", "docling_v5_convert.py");
+        // Fallback for development time if BaseDirectory is bin output
+        if (!File.Exists(scriptPath))
+        {
+             // Try to find it in source tree if not copied to output yet
+             var projectDir = Path.GetDirectoryName(Path.GetDirectoryName(Path.GetDirectoryName(AppDomain.CurrentDomain.BaseDirectory)));
+             if (projectDir != null)
+                 scriptPath = Path.Combine(projectDir, "Resources", "Python", "docling_v5_convert.py");
+        }
+
+        if (!File.Exists(scriptPath))
+        {
+            return "Error: docling_v5_convert.py script not found.";
+        }
+
+        // Build arguments
+        var args = new StringBuilder();
+        args.Append($"\"{scriptPath}\" \"{inputPath}\" \"{outputPath}\"");
+        
+        if (useGpu)
+        {
+            args.Append(" --gpu");
+        }
+        
+        if (options.ForceFullPageOcr)
+        {
+            args.Append(" --force-ocr");
+        }
+        
+        var imageMode = options.ImageExportMode switch
+        {
+            ImageExportMode.Embedded => "embedded",
+            ImageExportMode.ExternalFiles => "referenced",
+            _ => "placeholder"
+        };
+        args.Append($" --image-mode {imageMode}");
+
+        onProgress?.Invoke($"Running Docling with PP-OCRv5{(useGpu ? " (GPU)" : "")}: {Path.GetFileName(inputPath)}");
+
+        return await RunPythonProcessAsync(pythonPath, args.ToString(), cancellationToken, onProgress);
     }
 
     private async Task<string> RunProcessAsync(
@@ -515,6 +596,11 @@ public class ConversionOptions
     /// Use RapidOCR for Docling OCR
     /// </summary>
     public bool UseRapidOcr { get; set; }
+    
+    /// <summary>
+    /// Use RapidOCR v5 (PP-OCRv5) for high-accuracy Japanese OCR
+    /// </summary>
+    public bool UseRapidOcrV5 { get; set; }
     
     /// <summary>
     /// Output file overwrite mode

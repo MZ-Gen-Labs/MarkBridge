@@ -172,6 +172,15 @@ public class AppStateService
     }
 
     /// <summary>
+    /// Use RapidOCR v5 (PP-OCRv5) for high-accuracy Japanese OCR
+    /// </summary>
+    public bool UseRapidOcrV5
+    {
+        get => _settings.UseRapidOcrV5;
+        set { _settings.UseRapidOcrV5 = value; NotifyStateChanged(); }
+    }
+
+    /// <summary>
     /// Output file overwrite mode
     /// </summary>
     public OutputOverwriteMode OutputOverwriteMode
@@ -369,6 +378,7 @@ public class AppSettings
     // Docling OCR engine selection (multiple selection support)
     public bool UseEasyOcr { get; set; } = true;
     public bool UseRapidOcr { get; set; } = false;
+    public bool UseRapidOcrV5 { get; set; } = false;  // PP-OCRv5 Japanese optimized
     
     // Output file handling
     public OutputOverwriteMode OutputOverwriteMode { get; set; } = OutputOverwriteMode.Overwrite;
@@ -442,7 +452,12 @@ public class QueueItem
             // Append OCR engine info for Docling
             if ((Engine == ConversionEngine.Docling || Engine == ConversionEngine.DoclingGpu) && !string.IsNullOrEmpty(OcrEngine))
             {
-                var ocrName = OcrEngine == "easyocr" ? "EasyOCR" : "RapidOCR";
+                var ocrName = OcrEngine switch
+                {
+                    "easyocr" => "EasyOCR",
+                    "rapidocr_v5" => "RapidOCR v5",
+                    _ => "RapidOCR"
+                };
                 return $"{baseName} - {ocrName}";
             }
             
@@ -472,10 +487,15 @@ public class QueueItem
                 _ => ""
             };
             
-            // Append OCR engine suffix for Docling (e = EasyOCR, r = RapidOCR)
+            // Append OCR engine suffix for Docling (e = EasyOCR, r = RapidOCR, v = RapidOCR v5)
             if ((Engine == ConversionEngine.Docling || Engine == ConversionEngine.DoclingGpu) && !string.IsNullOrEmpty(OcrEngine))
             {
-                var ocrSuffix = OcrEngine == "easyocr" ? "e" : "r";
+                var ocrSuffix = OcrEngine switch
+                {
+                    "easyocr" => "e",
+                    "rapidocr_v5" => "v",
+                    _ => "r"
+                };
                 return $"{baseSuffix}{ocrSuffix}.md";
             }
             

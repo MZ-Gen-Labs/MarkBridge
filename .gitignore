@@ -8,10 +8,24 @@ obj/
 __pycache__/
 *.py[cod]
 .venv/
+.venv_test/
 Lib/
 Scripts/
 Include/
 pyvenv.cfg
+
+# Test output files (generated during OCR testing)
+TestFiles/*_dlc.md
+TestFiles/*_dlg.md
+TestFiles/*_dlge.md
+TestFiles/*_dlgr.md
+TestFiles/*_dlgv.md
+TestFiles/*_pdc.md
+TestFiles/*_pdg.md
+TestFiles/*_v5test.md
+TestFiles/*_docling_v5.md
+TestFiles/test_*.md
+Tests/Output/
 
 # IDE
 .vs/
