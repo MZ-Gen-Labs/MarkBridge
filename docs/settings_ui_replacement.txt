@@ -1,0 +1,242 @@
+<!-- 
+  Settings.razor セクション2-3 置き換え用コード
+  
+  使い方:
+  1. Settings.razorを開く
+  2. 行143-501（「<!-- 2. Virtual Environment -->」から「<!-- 4. Application Settings -->」の前まで）を削除
+  3. 以下のコードをその位置に貼り付け
+  4. 保存してビルド確認
+-->
+
+    <!-- 2. Conversion Engines -->
+    <div class="settings-card mb-4">
+        <div class="card-header d-flex align-items-center">
+            <span class="badge bg-primary me-2">2</span>
+            Conversion Engines
+            <span class="text-muted small ms-2">(Each engine uses an isolated virtual environment)</span>
+        </div>
+        <div class="card-body">
+            @if (string.IsNullOrEmpty(pythonPath))
+            {
+                <div class="alert alert-warning mb-0">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    Please configure System Python first (Section 1).
+                </div>
+            }
+            else
+            {
+                <!-- MarkItDown Engine -->
+                <div class="engine-card mb-4 p-3 border rounded">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <div>
+                            <h6 class="mb-0"><i class="bi bi-file-earmark-text me-2"></i>MarkItDown</h6>
+                            <small class="text-muted">Standard converter, fast and lightweight</small>
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            @if (markitdownVenvExists && markitdownInstalled)
+                            {
+                                <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Ready v@(markitdownVersion)</span>
+                            }
+                            else if (markitdownVenvExists)
+                            {
+                                <span class="badge bg-warning text-dark"><i class="bi bi-exclamation-triangle me-1"></i>Package not installed</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-secondary"><i class="bi bi-x-circle me-1"></i>Not configured</span>
+                            }
+                        </div>
+                    </div>
+                    <div class="small text-muted mb-2"><i class="bi bi-folder me-1"></i>venv: <code>@Path.GetFileName(markitdownVenvPath)</code></div>
+                    <div class="d-flex gap-2 justify-content-end">
+                        @if (!markitdownVenvExists)
+                        {
+                            <button class="btn btn-success btn-sm" @onclick="SetupMarkItDown" disabled="@isInstalling">
+                                @if (isInstalling && installingPackage == "markitdown-setup") { <span class="spinner-border spinner-border-sm me-1"></span> }
+                                <i class="bi bi-plus-circle me-1"></i>Setup Environment
+                            </button>
+                        }
+                        else if (!markitdownInstalled)
+                        {
+                            <button class="btn btn-primary btn-sm" @onclick="InstallMarkItDown" disabled="@isInstalling">
+                                @if (isInstalling && installingPackage == "markitdown") { <span class="spinner-border spinner-border-sm me-1"></span> }
+                                <i class="bi bi-download me-1"></i>Install
+                            </button>
+                            <button class="btn btn-outline-danger btn-sm" @onclick="DeleteMarkItDownVenv" disabled="@isInstalling"><i class="bi bi-trash me-1"></i>Delete</button>
+                        }
+                        else
+                        {
+                            <button class="btn btn-outline-secondary btn-sm" @onclick="ReinstallMarkItDown" disabled="@isInstalling">
+                                @if (isInstalling && installingPackage == "markitdown") { <span class="spinner-border spinner-border-sm me-1"></span> }
+                                <i class="bi bi-arrow-clockwise me-1"></i>Reinstall
+                            </button>
+                            <button class="btn btn-outline-danger btn-sm" @onclick="DeleteMarkItDownVenv" disabled="@isInstalling"><i class="bi bi-trash me-1"></i>Delete</button>
+                        }
+                    </div>
+                </div>
+
+                <!-- Docling Engine -->
+                <div class="engine-card mb-4 p-3 border rounded">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <div>
+                            <h6 class="mb-0"><i class="bi bi-file-earmark-pdf me-2"></i>Docling</h6>
+                            <small class="text-muted">Advanced PDF parsing with OCR support (PyTorch)</small>
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            @if (doclingVenvExists && doclingInstalled)
+                            {
+                                <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Ready v@(doclingVersion)</span>
+                                @if (cudaInstalled) { <span class="badge bg-info"><i class="bi bi-gpu-card me-1"></i>CUDA @cudaVersion</span> }
+                            }
+                            else if (doclingVenvExists)
+                            {
+                                <span class="badge bg-warning text-dark"><i class="bi bi-exclamation-triangle me-1"></i>Package not installed</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-secondary"><i class="bi bi-x-circle me-1"></i>Not configured</span>
+                            }
+                        </div>
+                    </div>
+                    <div class="small text-muted mb-2"><i class="bi bi-folder me-1"></i>venv: <code>@Path.GetFileName(doclingVenvPath)</code></div>
+                    @if (doclingVenvExists && doclingInstalled)
+                    {
+                        <div class="ms-3 mb-2 small">
+                            <span class="@(easyocrInstalled ? "text-success" : "text-muted") me-3"><i class="bi @(easyocrInstalled ? "bi-check-circle-fill" : "bi-circle")"></i> EasyOCR</span>
+                            <span class="@(rapidocrInstalled ? "text-success" : "text-muted") me-3"><i class="bi @(rapidocrInstalled ? "bi-check-circle-fill" : "bi-circle")"></i> RapidOCR</span>
+                            <span class="@(cudaInstalled ? "text-success" : "text-muted")"><i class="bi @(cudaInstalled ? "bi-check-circle-fill" : "bi-circle")"></i> PyTorch CUDA</span>
+                        </div>
+                        <div class="d-flex gap-2 flex-wrap mb-2">
+                            <button class="btn btn-outline-secondary btn-sm" @onclick="InstallEasyOcr" disabled="@isInstalling">
+                                @if (isInstalling && installingPackage == "easyocr") { <span class="spinner-border spinner-border-sm me-1"></span> }
+                                <i class="bi bi-download me-1"></i>@(easyocrInstalled ? "Update" : "Add") EasyOCR
+                            </button>
+                            <button class="btn btn-outline-secondary btn-sm" @onclick="InstallRapidOcr" disabled="@isInstalling">
+                                @if (isInstalling && installingPackage == "rapidocr") { <span class="spinner-border spinner-border-sm me-1"></span> }
+                                <i class="bi bi-download me-1"></i>@(rapidocrInstalled ? "Update" : "Add") RapidOCR
+                            </button>
+                            <button class="btn btn-outline-secondary btn-sm" @onclick="() => InstallCuda(false)" disabled="@isInstalling" title="CUDA 12.4">
+                                @if (isInstalling && installingPackage == "cuda") { <span class="spinner-border spinner-border-sm me-1"></span> }
+                                <i class="bi bi-gpu-card me-1"></i>@(cudaInstalled ? "Update" : "Add") CUDA
+                            </button>
+                            <button class="btn btn-outline-secondary btn-sm" @onclick="() => InstallCuda(true)" disabled="@isInstalling" title="CUDA 12.8 Nightly for RTX 50">
+                                @if (isInstalling && installingPackage == "cuda-nightly") { <span class="spinner-border spinner-border-sm me-1"></span> }
+                                <i class="bi bi-lightning me-1"></i>RTX 50 Nightly
+                            </button>
+                        </div>
+                    }
+                    <div class="d-flex gap-2 justify-content-end">
+                        @if (!doclingVenvExists)
+                        {
+                            <button class="btn btn-success btn-sm" @onclick="SetupDocling" disabled="@isInstalling">
+                                @if (isInstalling && installingPackage == "docling-setup") { <span class="spinner-border spinner-border-sm me-1"></span> }
+                                <i class="bi bi-plus-circle me-1"></i>Setup Environment
+                            </button>
+                        }
+                        else if (!doclingInstalled)
+                        {
+                            <button class="btn btn-primary btn-sm" @onclick="InstallDocling" disabled="@isInstalling">
+                                @if (isInstalling && installingPackage == "docling") { <span class="spinner-border spinner-border-sm me-1"></span> }
+                                <i class="bi bi-download me-1"></i>Install Docling
+                            </button>
+                            <button class="btn btn-outline-danger btn-sm" @onclick="DeleteDoclingVenv" disabled="@isInstalling"><i class="bi bi-trash me-1"></i>Delete</button>
+                        }
+                        else
+                        {
+                            <button class="btn btn-outline-secondary btn-sm" @onclick="ReinstallDocling" disabled="@isInstalling">
+                                @if (isInstalling && installingPackage == "docling") { <span class="spinner-border spinner-border-sm me-1"></span> }
+                                <i class="bi bi-arrow-clockwise me-1"></i>Reinstall
+                            </button>
+                            <button class="btn btn-outline-danger btn-sm" @onclick="DeleteDoclingVenv" disabled="@isInstalling"><i class="bi bi-trash me-1"></i>Delete</button>
+                        }
+                    </div>
+                </div>
+
+                <!-- PaddleOCR Engine -->
+                <div class="engine-card p-3 border rounded">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <div>
+                            <h6 class="mb-0"><i class="bi bi-grid-3x3 me-2"></i>PaddleOCR</h6>
+                            <small class="text-muted">PP-Structure - Layout analysis and table recognition</small>
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            @if (paddleVenvExists && paddleOcrInstalled)
+                            {
+                                <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Ready v@(paddleOcrVersion)</span>
+                                @if (paddleGpuInstalled) { <span class="badge bg-info"><i class="bi bi-gpu-card me-1"></i>GPU</span> }
+                                else if (paddleCpuInstalled) { <span class="badge bg-secondary">CPU</span> }
+                            }
+                            else if (paddleVenvExists)
+                            {
+                                <span class="badge bg-warning text-dark"><i class="bi bi-exclamation-triangle me-1"></i>Package not installed</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-secondary"><i class="bi bi-x-circle me-1"></i>Not configured</span>
+                            }
+                        </div>
+                    </div>
+                    <div class="small text-muted mb-2">
+                        <i class="bi bi-folder me-1"></i>venv: <code>@Path.GetFileName(paddleVenvPath)</code>
+                        <span class="ms-2 text-info"><i class="bi bi-info-circle"></i> Isolated to avoid CUDA conflicts</span>
+                    </div>
+                    <div class="d-flex gap-2 justify-content-end">
+                        @if (!paddleVenvExists)
+                        {
+                            <button class="btn btn-outline-secondary btn-sm" @onclick="SetupPaddleCpu" disabled="@isInstalling">
+                                @if (isInstalling && installingPackage == "paddle-cpu-setup") { <span class="spinner-border spinner-border-sm me-1"></span> }
+                                <i class="bi bi-plus-circle me-1"></i>Setup CPU
+                            </button>
+                            <button class="btn btn-success btn-sm" @onclick="SetupPaddleGpu" disabled="@isInstalling">
+                                @if (isInstalling && installingPackage == "paddle-gpu-setup") { <span class="spinner-border spinner-border-sm me-1"></span> }
+                                <i class="bi bi-plus-circle me-1"></i>Setup GPU <span class="badge bg-light text-dark">Recommended</span>
+                            </button>
+                        }
+                        else if (!paddleOcrInstalled)
+                        {
+                            <button class="btn btn-outline-secondary btn-sm" @onclick="InstallPaddleOcrCpu" disabled="@isInstalling">
+                                @if (isInstalling && installingPackage == "paddleocr-cpu") { <span class="spinner-border spinner-border-sm me-1"></span> }
+                                <i class="bi bi-download me-1"></i>Install CPU
+                            </button>
+                            <button class="btn btn-primary btn-sm" @onclick="InstallPaddleOcrGpu" disabled="@isInstalling">
+                                @if (isInstalling && installingPackage == "paddleocr-gpu") { <span class="spinner-border spinner-border-sm me-1"></span> }
+                                <i class="bi bi-download me-1"></i>Install GPU
+                            </button>
+                            <button class="btn btn-outline-danger btn-sm" @onclick="DeletePaddleVenv" disabled="@isInstalling"><i class="bi bi-trash me-1"></i>Delete</button>
+                        }
+                        else if (paddleCpuInstalled && !paddleGpuInstalled)
+                        {
+                            <button class="btn btn-success btn-sm" @onclick="SwitchToGpuVersion" disabled="@isInstalling">
+                                @if (isInstalling && installingPackage == "paddleocr-switch-gpu") { <span class="spinner-border spinner-border-sm me-1"></span> }
+                                <i class="bi bi-arrow-up-circle me-1"></i>Upgrade GPU
+                            </button>
+                            <button class="btn btn-outline-secondary btn-sm" @onclick="InstallPaddleOcrCpu" disabled="@isInstalling"><i class="bi bi-arrow-clockwise me-1"></i>Update</button>
+                            <button class="btn btn-outline-danger btn-sm" @onclick="DeletePaddleVenv" disabled="@isInstalling"><i class="bi bi-trash me-1"></i>Delete</button>
+                        }
+                        else if (paddleGpuInstalled)
+                        {
+                            <button class="btn btn-outline-secondary btn-sm" @onclick="SwitchToCpuVersion" disabled="@isInstalling">
+                                @if (isInstalling && installingPackage == "paddleocr-switch-cpu") { <span class="spinner-border spinner-border-sm me-1"></span> }
+                                <i class="bi bi-arrow-down-circle me-1"></i>CPU Only
+                            </button>
+                            <button class="btn btn-outline-secondary btn-sm" @onclick="InstallPaddleOcrGpu" disabled="@isInstalling"><i class="bi bi-arrow-clockwise me-1"></i>Update</button>
+                            <button class="btn btn-outline-danger btn-sm" @onclick="DeletePaddleVenv" disabled="@isInstalling"><i class="bi bi-trash me-1"></i>Delete</button>
+                        }
+                    </div>
+                </div>
+
+                @if (!string.IsNullOrEmpty(installLog))
+                {
+                    <div class="mt-3">
+                        <label class="form-label d-flex justify-content-between">
+                            <span>Installation Log:</span>
+                            <button class="btn btn-sm btn-link p-0" @onclick="() => installLog = string.Empty">Clear</button>
+                        </label>
+                        <pre class="bg-dark text-light p-2 rounded" style="max-height: 200px; overflow-y: auto; font-size: 0.8rem;">@installLog</pre>
+                    </div>
+                }
+            }
+        </div>
+    </div>
+
+    <!-- 3. Application Settings -->

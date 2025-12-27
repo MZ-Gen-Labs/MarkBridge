@@ -29,10 +29,38 @@ public class AppStateService
         set { _settings.SystemPythonPath = value; NotifyStateChanged(); }
     }
 
+    [Obsolete("Use MarkItDownVenvPath, DoclingVenvPath, or PaddleVenvPath instead")]
     public string VirtualEnvPath
     {
         get => _settings.VirtualEnvPath;
         set { _settings.VirtualEnvPath = value; NotifyStateChanged(); }
+    }
+
+    /// <summary>
+    /// Virtual environment path for MarkItDown engine
+    /// </summary>
+    public string MarkItDownVenvPath
+    {
+        get => _settings.MarkItDownVenvPath;
+        set { _settings.MarkItDownVenvPath = value; NotifyStateChanged(); }
+    }
+
+    /// <summary>
+    /// Virtual environment path for Docling engine (PyTorch-based)
+    /// </summary>
+    public string DoclingVenvPath
+    {
+        get => _settings.DoclingVenvPath;
+        set { _settings.DoclingVenvPath = value; NotifyStateChanged(); }
+    }
+
+    /// <summary>
+    /// Virtual environment path for PaddleOCR engine (PaddlePaddle-based, isolated to avoid CUDA conflicts)
+    /// </summary>
+    public string PaddleVenvPath
+    {
+        get => _settings.PaddleVenvPath;
+        set { _settings.PaddleVenvPath = value; NotifyStateChanged(); }
     }
 
     public string DefaultOutputPath
@@ -158,10 +186,37 @@ public class AppStateService
 
     public string StatusMessage { get; private set; } = "Ready";
     public bool IsProcessing { get; private set; }
+    [Obsolete("Use IsMarkItDownVenvActive, IsDoclingVenvActive, or IsPaddleVenvActive instead")]
     public bool IsVenvActive { get; set; }
+    public bool IsMarkItDownVenvActive { get; set; }
+    public bool IsDoclingVenvActive { get; set; }
+    public bool IsPaddleVenvActive { get; set; }
     public string? PythonVersion { get; set; }
     public string? MarkItDownVersion { get; set; }
     public string? DoclingVersion { get; set; }
+
+    /// <summary>
+    /// Returns true if legacy VirtualEnvPath is set and different from engine-specific paths
+    /// </summary>
+    public bool HasLegacyVenv => !string.IsNullOrEmpty(_settings.VirtualEnvPath) 
+        && Directory.Exists(_settings.VirtualEnvPath)
+        && _settings.VirtualEnvPath != _settings.MarkItDownVenvPath
+        && _settings.VirtualEnvPath != _settings.DoclingVenvPath
+        && _settings.VirtualEnvPath != _settings.PaddleVenvPath;
+
+    /// <summary>
+    /// Path to the legacy VirtualEnv (if exists)
+    /// </summary>
+    public string LegacyVenvPath => _settings.VirtualEnvPath;
+
+    /// <summary>
+    /// Clear the legacy VirtualEnvPath from settings
+    /// </summary>
+    public void ClearLegacyVenv()
+    {
+        _settings.VirtualEnvPath = string.Empty;
+        NotifyStateChanged();
+    }
 
     public void SetStatus(string message, bool isProcessing = false)
     {
@@ -241,6 +296,25 @@ public class AppStateService
             _settings.VirtualEnvPath = Path.Combine(appData, "MarkBridge", ".venv");
         }
 
+        // Phase 2: Separate venvs for each engine to avoid CUDA/dependency conflicts
+        var baseAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        var venvBase = Path.Combine(baseAppData, "MarkBridge");
+        var legacyVenvPath = _settings.VirtualEnvPath;
+        
+        // Force update if paths are still pointing to legacy .venv (migration)
+        if (string.IsNullOrEmpty(_settings.MarkItDownVenvPath) || _settings.MarkItDownVenvPath == legacyVenvPath)
+        {
+            _settings.MarkItDownVenvPath = Path.Combine(venvBase, ".venv_markitdown");
+        }
+        if (string.IsNullOrEmpty(_settings.DoclingVenvPath) || _settings.DoclingVenvPath == legacyVenvPath)
+        {
+            _settings.DoclingVenvPath = Path.Combine(venvBase, ".venv_docling");
+        }
+        if (string.IsNullOrEmpty(_settings.PaddleVenvPath) || _settings.PaddleVenvPath == legacyVenvPath)
+        {
+            _settings.PaddleVenvPath = Path.Combine(venvBase, ".venv_paddle");
+        }
+
         _isInitialized = true;
         NotifyStateChanged();
     }
@@ -270,7 +344,10 @@ public class AppStateService
 public class AppSettings
 {
     public string SystemPythonPath { get; set; } = string.Empty;
-    public string VirtualEnvPath { get; set; } = string.Empty;
+    public string VirtualEnvPath { get; set; } = string.Empty; // Legacy, kept for migration
+    public string MarkItDownVenvPath { get; set; } = string.Empty;
+    public string DoclingVenvPath { get; set; } = string.Empty;
+    public string PaddleVenvPath { get; set; } = string.Empty;
     public string DefaultOutputPath { get; set; } = string.Empty;
     public bool UseOriginalFolderForOutput { get; set; } = true;
     public bool AutoSaveEnabled { get; set; } = true;

@@ -310,9 +310,20 @@ public class PythonEnvironmentService
     {
         onProgress?.Invoke("Installing Docling...");
         var result = await RunPipCommandAsync(GetVenvPythonPath(venvPath), "install docling", onProgress);
-        return result.exitCode == 0
-            ? (true, "Docling installed successfully.")
-            : (false, $"Installation failed: {result.error}");
+        if (result.exitCode != 0)
+        {
+            return (false, $"Docling installation failed: {result.error}");
+        }
+
+        // Install onnxruntime for RapidOCR support
+        onProgress?.Invoke("Installing onnxruntime for RapidOCR...");
+        var onnxResult = await RunPipCommandAsync(GetVenvPythonPath(venvPath), "install onnxruntime", onProgress);
+        if (onnxResult.exitCode != 0)
+        {
+            return (false, $"onnxruntime installation failed: {onnxResult.error}");
+        }
+
+        return (true, "Docling installed successfully.");
     }
 
     /// <summary>
