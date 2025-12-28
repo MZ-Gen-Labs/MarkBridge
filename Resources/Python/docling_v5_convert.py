@@ -136,6 +136,7 @@ def convert_document(input_path, output_path, use_gpu=False, force_ocr=False, en
         pipeline_options.images_scale = 1.0
         pipeline_options.generate_picture_images = True
         pipeline_options.generate_page_images = True  # Also generate page images
+        pipeline_options.generate_table_images = True  # Export tables as images too
     
     # Configure format options
     pdf_options = PdfFormatOption(
@@ -185,6 +186,17 @@ def convert_document(input_path, output_path, use_gpu=False, force_ocr=False, en
             # Referenced mode: use save_as_markdown which automatically saves images
             result.document.save_as_markdown(Path(output_path), image_mode=ImageRefMode.REFERENCED)
             print(f"  Images saved alongside markdown file")
+            
+            # Also save table images (generate_table_images provides table.image)
+            output_dir_path = Path(output_dir) if output_dir else Path(".")
+            tables_saved = 0
+            for i, table in enumerate(result.document.tables):
+                if hasattr(table, 'image') and table.image is not None:
+                    table_img_path = output_dir_path / f"table_{i}.png"
+                    table.image.pil_image.save(table_img_path)
+                    tables_saved += 1
+            if tables_saved > 0:
+                print(f"  Saved {tables_saved} table images")
         else:
             # Placeholder mode: no images
             markdown_content = result.document.export_to_markdown()
