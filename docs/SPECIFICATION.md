@@ -73,9 +73,12 @@ MarkBridgeは、Microsoft製「MarkItDown」ライブラリおよびDoclingを�
 | Docling (GPU) | GPU高速処理（CUDA必須） | `_dlg.md` |
 | PaddleOCR (CPU) | 表・レイアウト解析特化（PP-Structure） | `_pdc.md` |
 | PaddleOCR (GPU) | CUDA 12.9対応GPU版 | `_pdg.md` |
+| Marker (CPU) | 高精度PDF変換、テーブル認識優秀 | `_mkc.md` |
+| Marker (GPU) | GPU高速処理（CUDA 12.8 Nightly） | `_mkg.md` |
 
 - 1つ以上のエンジン選択必須
 - 複数選択時は各エンジンで並列変換
+- Markerエンジンは **Advanced Engines** セクション（要ライセンス同意）で有効化
 
 > **注意:** GPU版エンジン使用には事前にCUDA版パッケージのインストールが必要。
 
@@ -100,7 +103,7 @@ MarkBridgeは、Microsoft製「MarkItDown」ライブラリおよびDoclingを�
 - `_dlgr.md` = Docling GPU + RapidOCR
 - `_dlgv.md` = Docling GPU + RapidOCR v5
 
-#### エンジンオプション（Docling選択時のみ有効）
+#### エンジンオプション（Docling選択時）
 
 - **Enable OCR**: スキャンPDF用文字認識
   - **Force OCR**: 全ページに強制的にOCR処理を適用（`--force-ocr`）
@@ -112,6 +115,15 @@ MarkBridgeは、Microsoft製「MarkItDown」ライブラリおよびDoclingを�
   - None: 画像なし（プレースホルダーのみ）
   - Embedded: Base64でMarkdown内に埋め込み
   - Files: 外部ファイルとして保存（サブフォルダ作成）
+
+> **詳細:** 画像出力の詳細仕様は [IMAGE_EXPORT.md](IMAGE_EXPORT.md) を参照。
+
+#### エンジンオプション（Marker選択時）
+
+- **Disable OCR**: OCR処理を無効化
+- **Disable image extraction**: 画像抽出を無効化
+
+> **注意:** Marker (GPU) はPyTorch CUDA 12.8 Nightlyが必要（RTX 50シリーズ対応）。
 
 #### OCRエンジン仕様
 
@@ -239,6 +251,7 @@ Markdigライブラリで以下の拡張機能を有効化:
 | MarkItDown | `.venv_markitdown` | 標準変換、軽量 |
 | Docling | `.venv_docling` | PyTorch/CUDA使用（12.4または12.8） |
 | PaddleOCR | `.venv_paddle` | PaddlePaddle使用（CUDA 12.3） |
+| Marker | `.venv_marker` | PyTorch/CUDA使用（12.8 Nightly） |
 
 **Doclingインストールオプション:**
 
@@ -257,6 +270,22 @@ Markdigライブラリで以下の拡張機能を有効化:
 - パス表示・変更（Browse...）
 - ステータス: ✅ Ready vX.X.X / ⚠️ Package not installed / ⬜ Not configured
 - ボタン: Setup CPU/GPU/Nightly / Install / Reinstall / Delete
+
+#### Advanced Engines（ライセンス確認エリア）
+
+MarkerエンジンはCC-BY-NC-SAライセンスのため、有効化前にライセンス同意が必要。
+
+| エンジン | ライセンス | 説明 |
+|----------|-----------|------|
+| Marker | CC-BY-NC-SA | 高精度PDF変換、商用利用制限あり |
+
+**Markerインストールフロー:**
+1. ライセンス条項の確認・同意
+2. 「Accept and Enable Marker」でインストール有効化
+3. 「Install Marker」でパッケージインストール
+4. 「Add GPU (CUDA)」でPyTorch Nightly（CUDA 12.8）追加
+
+> **GPU対応:** MarkerのGPUモードはPyTorch CUDA 12.8 Nightlyを使用。RTX 50シリーズ（sm_120）対応。インストール後、互換のためPillowを10.x系にダウングレード。
 
 #### 3. Library Management Area
 
@@ -366,10 +395,11 @@ Import-Certificate -FilePath ".\MarkBridge_Dev.cer" -CertStoreLocation Cert:\Cur
 
 ### 8.1 構成
 
-Python環境構築・OCR変換スクリプトのテスト用フレームワーク。
+Python環境構築・OCR変換スクリプトのテスト用フレームワーク。**本番venvとテストvenvを分離**。
 
 ```
 Tests/
+├── setup_test_venv.py  # テストvenv構築スクリプト
 ├── test_config.py      # 共通設定（パス定義・ヘルパー）
 ├── run_tests.py        # 統合テストランナー
 ├── test_*.py           # 各テストスクリプト
@@ -377,7 +407,24 @@ Tests/
 └── Output/             # テスト出力（.gitignore対象）
 ```
 
-### 8.2 本体スクリプトとの連携
+### 8.2 テストvenv分離
+
+本番venvを汚さずにテスト可能。`test_config.py`で本番venvとテストvenvを切り替え可能。
+
+| venv種別 | パス例 | 用途 |
+|----------|--------|------|
+| 本番 | `.venv_docling` | アプリ実行用 |
+| テスト | `.venv_test_docling` | テスト実行用 |
+
+**テストvenv構築:**
+```powershell
+cd Tests
+python setup_test_venv.py setup --engine docling
+python setup_test_venv.py status
+python setup_test_venv.py teardown --engine docling
+```
+
+### 8.3 本体スクリプトとの連携
 
 `test_config.py`で`Resources/Python/`をパスに追加し、本体スクリプトを直接インポート:
 
@@ -386,17 +433,20 @@ import test_config  # パス設定
 import docling_v5_convert  # 本体スクリプト
 ```
 
-### 8.3 実行方法
+### 8.4 実行方法
 
 ```powershell
 cd Tests
 & "$env:LOCALAPPDATA\MarkBridge\.venv_docling\Scripts\python.exe" run_tests.py
 ```
 
-### 8.4 テスト一覧
+### 8.5 テスト一覧
 
 | テスト | 説明 |
 |--------|------|
 | `test_environment.py` | Python環境・パッケージ診断 |
 | `test_rapidocr_v5.py` | PP-OCRv5スタンドアロンテスト |
 | `test_docling_v5.py` | Docling+PP-OCRv5統合テスト |
+| `test_venv_setup.py` | venv構築・削除テスト |
+| `test_image_export.py` | 画像出力モードテスト |
+| `test_ocr_settings.py` | OCR設定テスト |
