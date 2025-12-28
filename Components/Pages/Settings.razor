@@ -649,7 +649,9 @@
     // Venv (Legacy - for backward compatibility)
     private string venvPath = string.Empty;
     private bool venvExists = false;
+#pragma warning disable CS0414 // Field is assigned but never read (legacy)
     private bool isVenvProcessing = false;
+#pragma warning restore CS0414
     private string venvLog = string.Empty;
 
     // Venv Base Path (Issue #1: unified venv folder management)
@@ -1452,12 +1454,12 @@
         if (result.success)
         {
             installLog += "\nDowngrading Pillow for marker-pdf compatibility...\n";
-            InvokeAsync(StateHasChanged);
+            await InvokeAsync(StateHasChanged);
             
             var pillowResult = await PythonEnv.RunPipInstallAsync(
                 AppState.MarkerVenvPath, 
                 "install \"pillow>=10.1.0,<11.0.0\"",
-                log => { installLog += log + "\n"; InvokeAsync(StateHasChanged); });
+                log => { installLog += log + "\n"; _ = InvokeAsync(StateHasChanged); });
             
             installLog += pillowResult.success ? "\nPillow downgrade completed." : $"\nPillow downgrade failed: {pillowResult.message}";
         }
