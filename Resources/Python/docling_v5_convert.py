@@ -91,7 +91,7 @@ def download_models_if_needed():
     return True
 
 
-def convert_document(input_path, output_path, use_gpu=False, force_ocr=False, image_mode="placeholder"):
+def convert_document(input_path, output_path, use_gpu=False, force_ocr=False, enable_ocr=True, image_mode="placeholder"):
     """Convert document using Docling with PP-OCRv5 models for OCR"""
     from docling.document_converter import DocumentConverter, PdfFormatOption
     from docling.datamodel.pipeline_options import PdfPipelineOptions
@@ -123,13 +123,19 @@ def convert_document(input_path, output_path, use_gpu=False, force_ocr=False, im
     
     # Configure PDF pipeline options
     pipeline_options = PdfPipelineOptions()
-    pipeline_options.do_ocr = True
-    pipeline_options.ocr_options = rapidocr_options
+    pipeline_options.do_ocr = enable_ocr  # Control OCR via parameter
+    if enable_ocr:
+        pipeline_options.ocr_options = rapidocr_options
+    else:
+        # When OCR is disabled, also disable table structure detection
+        # This allows tables to be treated as images
+        pipeline_options.do_table_structure = False
     
     # Image export mode
-    if image_mode == "embedded":
+    if image_mode in ("embedded", "referenced"):
         pipeline_options.images_scale = 1.0
         pipeline_options.generate_picture_images = True
+        pipeline_options.generate_page_images = True  # Also generate page images
     
     # Configure format options
     pdf_options = PdfFormatOption(
@@ -158,19 +164,32 @@ def convert_document(input_path, output_path, use_gpu=False, force_ocr=False, im
         # Convert document from temp location
         result = converter.convert(temp_input_path)
         
-        # Export to Markdown
-        if image_mode == "embedded":
-            markdown_content = result.document.export_to_markdown(image_mode=ImageRefMode.EMBEDDED)
-        else:
-            markdown_content = result.document.export_to_markdown()
+        print(f"  Detected: {len(result.document.pictures)} pictures, {len(result.document.tables)} tables")
         
-        # Write output to final destination
+        # Prepare output directory
         output_dir = os.path.dirname(output_path)
         if output_dir:
             os.makedirs(output_dir, exist_ok=True)
         
-        with open(output_path, 'w', encoding='utf-8') as f:
-            f.write(markdown_content)
+        # Export to Markdown based on image mode
+        # Use save_as_markdown for REFERENCED mode (automatically saves images as files)
+        # Use export_to_markdown for EMBEDDED mode (returns markdown string with base64 images)
+        from pathlib import Path
+        
+        if image_mode == "embedded":
+            # Embedded mode: use export_to_markdown and write manually
+            markdown_content = result.document.export_to_markdown(image_mode=ImageRefMode.EMBEDDED)
+            with open(output_path, 'w', encoding='utf-8') as f:
+                f.write(markdown_content)
+        elif image_mode == "referenced":
+            # Referenced mode: use save_as_markdown which automatically saves images
+            result.document.save_as_markdown(Path(output_path), image_mode=ImageRefMode.REFERENCED)
+            print(f"  Images saved alongside markdown file")
+        else:
+            # Placeholder mode: no images
+            markdown_content = result.document.export_to_markdown()
+            with open(output_path, 'w', encoding='utf-8') as f:
+                f.write(markdown_content)
         
         print(f"Conversion complete: {output_path}")
         return True
@@ -189,6 +208,7 @@ def main():
     parser.add_argument('output_file', help='Output Markdown file path')
     parser.add_argument('--gpu', action='store_true', help='Use GPU acceleration')
     parser.add_argument('--force-ocr', action='store_true', help='Force OCR on all pages')
+    parser.add_argument('--no-ocr', action='store_true', help='Disable OCR')
     parser.add_argument('--image-mode', choices=['placeholder', 'embedded', 'referenced'], 
                        default='placeholder', help='Image export mode')
     parser.add_argument('--download-models', action='store_true', help='Download models only')
@@ -221,6 +241,7 @@ def main():
             args.output_file,
             use_gpu=args.gpu,
             force_ocr=args.force_ocr,
+            enable_ocr=not args.no_ocr,
             image_mode=args.image_mode
         )
         

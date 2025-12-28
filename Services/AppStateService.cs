@@ -37,30 +37,65 @@ public class AppStateService
     }
 
     /// <summary>
-    /// Virtual environment path for MarkItDown engine
+    /// Base path for all virtual environments.
+    /// Individual engine venvs are created as subdirectories (.venv_markitdown, .venv_docling, .venv_paddle)
     /// </summary>
-    public string MarkItDownVenvPath
+    public string VenvBasePath
     {
-        get => _settings.MarkItDownVenvPath;
-        set { _settings.MarkItDownVenvPath = value; NotifyStateChanged(); }
+        get => _settings.VenvBasePath;
+        set 
+        { 
+            _settings.VenvBasePath = value;
+            // Update individual venv paths based on new base path
+            UpdateVenvPaths();
+            NotifyStateChanged(); 
+        }
     }
 
     /// <summary>
-    /// Virtual environment path for Docling engine (PyTorch-based)
+    /// Virtual environment path for MarkItDown engine (read-only, derived from VenvBasePath)
     /// </summary>
-    public string DoclingVenvPath
+    public string MarkItDownVenvPath => string.IsNullOrEmpty(_settings.VenvBasePath) 
+        ? string.Empty 
+        : Path.Combine(_settings.VenvBasePath, ".venv_markitdown");
+
+    /// <summary>
+    /// Virtual environment path for Docling engine (read-only, derived from VenvBasePath)
+    /// </summary>
+    public string DoclingVenvPath => string.IsNullOrEmpty(_settings.VenvBasePath) 
+        ? string.Empty 
+        : Path.Combine(_settings.VenvBasePath, ".venv_docling");
+
+    /// <summary>
+    /// Virtual environment path for PaddleOCR engine (read-only, derived from VenvBasePath)
+    /// </summary>
+    public string PaddleVenvPath => string.IsNullOrEmpty(_settings.VenvBasePath) 
+        ? string.Empty 
+        : Path.Combine(_settings.VenvBasePath, ".venv_paddle");
+
+    /// <summary>
+    /// Virtual environment path for Marker engine (read-only, derived from VenvBasePath)
+    /// </summary>
+    public string MarkerVenvPath => string.IsNullOrEmpty(_settings.VenvBasePath) 
+        ? string.Empty 
+        : Path.Combine(_settings.VenvBasePath, ".venv_marker");
+
+    /// <summary>
+    /// Whether user has accepted the Marker commercial license terms
+    /// </summary>
+    public bool MarkerLicenseAccepted
     {
-        get => _settings.DoclingVenvPath;
-        set { _settings.DoclingVenvPath = value; NotifyStateChanged(); }
+        get => _settings.MarkerLicenseAccepted;
+        set { _settings.MarkerLicenseAccepted = value; NotifyStateChanged(); }
     }
 
     /// <summary>
-    /// Virtual environment path for PaddleOCR engine (PaddlePaddle-based, isolated to avoid CUDA conflicts)
+    /// Update individual venv paths when base path changes (for internal use)
     /// </summary>
-    public string PaddleVenvPath
+    private void UpdateVenvPaths()
     {
-        get => _settings.PaddleVenvPath;
-        set { _settings.PaddleVenvPath = value; NotifyStateChanged(); }
+        // Paths are now computed properties, no need to update
+        // This method is kept for any future side effects
     }
 
     public string DefaultOutputPath
@@ -153,6 +188,18 @@ public class AppStateService
         set { _settings.UsePaddleOcrGpu = value; NotifyStateChanged(); }
     }
 
+    public bool UseMarkerCpu
+    {
+        get => _settings.UseMarkerCpu;
+        set { _settings.UseMarkerCpu = value; NotifyStateChanged(); }
+    }
+
+    public bool UseMarkerGpu
+    {
+        get => _settings.UseMarkerGpu;
+        set { _settings.UseMarkerGpu = value; NotifyStateChanged(); }
+    }
+
     /// <summary>
     /// Use EasyOCR for Docling OCR
     /// </summary>
@@ -205,13 +252,11 @@ public class AppStateService
     public string? DoclingVersion { get; set; }
 
     /// <summary>
-    /// Returns true if legacy VirtualEnvPath is set and different from engine-specific paths
+    /// Returns true if legacy VirtualEnvPath is set and exists (old .venv folder)
     /// </summary>
-    public bool HasLegacyVenv => !string.IsNullOrEmpty(_settings.VirtualEnvPath) 
+    public bool HasLegacyVenv => !string.IsNullOrEmpty(_settings.VirtualEnvPath)
         && Directory.Exists(_settings.VirtualEnvPath)
-        && _settings.VirtualEnvPath != _settings.MarkItDownVenvPath
-        && _settings.VirtualEnvPath != _settings.DoclingVenvPath
-        && _settings.VirtualEnvPath != _settings.PaddleVenvPath;
+        && !_settings.VirtualEnvPath.StartsWith(_settings.VenvBasePath);
 
     /// <summary>
     /// Path to the legacy VirtualEnv (if exists)
@@ -299,29 +344,17 @@ public class AppStateService
             _settings.DefaultOutputPath = Path.Combine(documents, "MarkBridge", "Output");
         }
 
-        if (string.IsNullOrEmpty(_settings.VirtualEnvPath))
+        // Set default VenvBasePath if not configured
+        if (string.IsNullOrEmpty(_settings.VenvBasePath))
         {
             var appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            _settings.VirtualEnvPath = Path.Combine(appData, "MarkBridge", ".venv");
+            _settings.VenvBasePath = Path.Combine(appData, "MarkBridge");
         }
 
-        // Phase 2: Separate venvs for each engine to avoid CUDA/dependency conflicts
-        var baseAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        var venvBase = Path.Combine(baseAppData, "MarkBridge");
-        var legacyVenvPath = _settings.VirtualEnvPath;
-        
-        // Force update if paths are still pointing to legacy .venv (migration)
-        if (string.IsNullOrEmpty(_settings.MarkItDownVenvPath) || _settings.MarkItDownVenvPath == legacyVenvPath)
+        // Legacy migration: if old VirtualEnvPath exists, clear it (venvs are now under VenvBasePath)
+        if (!string.IsNullOrEmpty(_settings.VirtualEnvPath))
         {
-            _settings.MarkItDownVenvPath = Path.Combine(venvBase, ".venv_markitdown");
-        }
-        if (string.IsNullOrEmpty(_settings.DoclingVenvPath) || _settings.DoclingVenvPath == legacyVenvPath)
-        {
-            _settings.DoclingVenvPath = Path.Combine(venvBase, ".venv_docling");
-        }
-        if (string.IsNullOrEmpty(_settings.PaddleVenvPath) || _settings.PaddleVenvPath == legacyVenvPath)
-        {
-            _settings.PaddleVenvPath = Path.Combine(venvBase, ".venv_paddle");
+            // Keep legacy path info for HasLegacyVenv check, but don't use it for new venvs
         }
 
         _isInitialized = true;
@@ -354,9 +387,7 @@ public class AppSettings
 {
     public string SystemPythonPath { get; set; } = string.Empty;
     public string VirtualEnvPath { get; set; } = string.Empty; // Legacy, kept for migration
-    public string MarkItDownVenvPath { get; set; } = string.Empty;
-    public string DoclingVenvPath { get; set; } = string.Empty;
-    public string PaddleVenvPath { get; set; } = string.Empty;
+    public string VenvBasePath { get; set; } = string.Empty; // New: parent folder for all venvs
     public string DefaultOutputPath { get; set; } = string.Empty;
     public bool UseOriginalFolderForOutput { get; set; } = true;
     public bool AutoSaveEnabled { get; set; } = true;
@@ -382,6 +413,11 @@ public class AppSettings
     
     // Output file handling
     public OutputOverwriteMode OutputOverwriteMode { get; set; } = OutputOverwriteMode.Overwrite;
+    
+    // Marker engine settings (Advanced option with license agreement)
+    public bool UseMarkerCpu { get; set; } = false;
+    public bool UseMarkerGpu { get; set; } = false;
+    public bool MarkerLicenseAccepted { get; set; } = false;
 }
 
 /// <summary>
@@ -403,7 +439,9 @@ public enum ConversionEngine
     Docling,
     DoclingGpu,
     PaddleOcrCpu,
-    PaddleOcrGpu
+    PaddleOcrGpu,
+    MarkerCpu,
+    MarkerGpu
 }
 
 /// <summary>
@@ -446,6 +484,8 @@ public class QueueItem
                 ConversionEngine.DoclingGpu => "Docling (GPU)",
                 ConversionEngine.PaddleOcrCpu => "PaddleOCR (CPU)",
                 ConversionEngine.PaddleOcrGpu => "PaddleOCR (GPU)",
+                ConversionEngine.MarkerCpu => "Marker (CPU)",
+                ConversionEngine.MarkerGpu => "Marker (GPU)",
                 _ => "Auto"
             };
             
@@ -484,6 +524,8 @@ public class QueueItem
                 ConversionEngine.DoclingGpu => "_dlg",   // Docling GPU
                 ConversionEngine.PaddleOcrCpu => "_pdc", // PaddleOCR CPU
                 ConversionEngine.PaddleOcrGpu => "_pdg", // PaddleOCR GPU
+                ConversionEngine.MarkerCpu => "_mkc",    // Marker CPU
+                ConversionEngine.MarkerGpu => "_mkg",    // Marker GPU
                 _ => ""
             };
             

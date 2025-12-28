@@ -166,6 +166,26 @@
             }
             else
             {
+                @* Venv Base Path setting *@
+                <div class="mb-4 p-3 border rounded bg-light">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <div>
+                            <h6 class="mb-0"><i class="bi bi-folder-symlink me-2"></i>Virtual Environment Folder</h6>
+                            <small class="text-muted">Parent folder for all engine venvs (.venv_markitdown, .venv_docling, .venv_paddle)</small>
+                        </div>
+                    </div>
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text"><i class="bi bi-folder"></i></span>
+                        <input type="text" class="form-control" @bind="venvBasePath" placeholder="%LOCALAPPDATA%\\MarkBridge" />
+                        <button class="btn btn-outline-secondary" @onclick="BrowseVenvBasePath" title="Browse...">
+                            <i class="bi bi-folder2-open"></i>
+                        </button>
+                        <button class="btn btn-outline-primary" @onclick="ApplyVenvBasePath" title="Apply">
+                            <i class="bi bi-check-lg"></i> Apply
+                        </button>
+                    </div>
+                </div>
+
                 @* Legacy venv migration warning *@
                 @if (AppState.HasLegacyVenv)
                 {
@@ -210,12 +230,9 @@
                             }
                         </div>
                     </div>
-                    <div class="input-group input-group-sm mb-2">
-                        <span class="input-group-text"><i class="bi bi-folder"></i></span>
-                        <input type="text" class="form-control" @bind="markitdownVenvPath" placeholder="venv path..." />
-                        <button class="btn btn-outline-secondary" @onclick="BrowseMarkItDownVenv" title="Browse...">
-                            <i class="bi bi-folder2-open"></i>
-                        </button>
+                    <div class="small text-muted mb-2">
+                        <i class="bi bi-folder me-1"></i>
+                        <code>@AppState.MarkItDownVenvPath</code>
                     </div>
                     <div class="d-flex gap-2 justify-content-end">
                         @if (!markitdownVenvExists)
@@ -272,12 +289,9 @@
                             }
                         </div>
                     </div>
-                    <div class="input-group input-group-sm mb-2">
-                        <span class="input-group-text"><i class="bi bi-folder"></i></span>
-                        <input type="text" class="form-control" @bind="doclingVenvPath" placeholder="venv path..." />
-                        <button class="btn btn-outline-secondary" @onclick="BrowseDoclingVenv" title="Browse...">
-                            <i class="bi bi-folder2-open"></i>
-                        </button>
+                    <div class="small text-muted mb-2">
+                        <i class="bi bi-folder me-1"></i>
+                        <code>@AppState.DoclingVenvPath</code>
                     </div>
                     @if (doclingVenvExists && doclingInstalled)
                     {
@@ -376,13 +390,10 @@
                             }
                         </div>
                     </div>
-                    <div class="input-group input-group-sm mb-2">
-                        <span class="input-group-text"><i class="bi bi-folder"></i></span>
-                        <input type="text" class="form-control" @bind="paddleVenvPath" placeholder="venv path..." />
-                        <button class="btn btn-outline-secondary" @onclick="BrowsePaddleVenv" title="Browse...">
-                            <i class="bi bi-folder2-open"></i>
-                        </button>
-                        <span class="input-group-text text-info" title="Isolated to avoid CUDA conflicts"><i class="bi bi-info-circle"></i></span>
+                    <div class="small text-muted mb-2">
+                        <i class="bi bi-folder me-1"></i>
+                        <code>@AppState.PaddleVenvPath</code>
+                        <i class="bi bi-info-circle ms-2" title="Isolated to avoid CUDA conflicts"></i>
                     </div>
                     <div class="d-flex gap-2 justify-content-end">
                         @if (!paddleVenvExists)
@@ -440,6 +451,119 @@
                 }
             }
         </div>
+    </div>
+    
+    <!-- Advanced Engines (Marker) -->
+    <div class="settings-card mb-4">
+        <div class="card-header d-flex align-items-center" style="cursor: pointer;" @onclick="() => isAdvancedEnginesExpanded = !isAdvancedEnginesExpanded">
+            <i class="bi @(isAdvancedEnginesExpanded ? "bi-chevron-down" : "bi-chevron-right") me-2"></i>
+            <span class="badge bg-warning text-dark me-2">Advanced</span>
+            Additional Conversion Engines
+        </div>
+        @if (isAdvancedEnginesExpanded)
+        {
+        <div class="card-body">
+            <div class="alert alert-warning mb-3">
+                <i class="bi bi-exclamation-triangle me-2"></i>
+                <strong>Advanced engines may have additional license requirements.</strong>
+                Please review the license terms before enabling.
+            </div>
+            
+            <!-- Marker Engine -->
+            <div class="engine-card p-3 border rounded">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <div>
+                        <h6 class="mb-0"><i class="bi bi-file-earmark-pdf me-2"></i>Marker</h6>
+                        <small class="text-muted">High-accuracy PDF to Markdown converter with excellent table support</small>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        @if (!AppState.MarkerLicenseAccepted)
+                        {
+                            <span class="badge bg-secondary"><i class="bi bi-lock me-1"></i>License Required</span>
+                        }
+                        else if (markerVenvExists && markerInstalled)
+                        {
+                            <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Ready v@(markerVersion)</span>
+                        }
+                        else if (markerVenvExists)
+                        {
+                            <span class="badge bg-warning text-dark"><i class="bi bi-exclamation-triangle me-1"></i>Package not installed</span>
+                        }
+                        else if (AppState.MarkerLicenseAccepted)
+                        {
+                            <span class="badge bg-secondary"><i class="bi bi-x-circle me-1"></i>Not configured</span>
+                        }
+                    </div>
+                </div>
+                <div class="small text-muted mb-2">
+                    <i class="bi bi-folder me-1"></i>
+                    <code>@AppState.MarkerVenvPath</code>
+                </div>
+                
+                @if (!AppState.MarkerLicenseAccepted)
+                {
+                    <div class="alert alert-info mb-2">
+                        <strong>Marker License Terms:</strong>
+                        <ul class="mb-2 mt-2">
+                            <li><strong>Code:</strong> GPL License</li>
+                            <li><strong>Models:</strong> AI Pubs Open Rail-M (modified)</li>
+                        </ul>
+                        <strong>Free for:</strong> Research, personal use, startups (revenue/funding &lt; $2M)
+                        <br/>
+                        <strong>Commercial license required:</strong> Revenue/funding &gt; $5M
+                        <br/>
+                        <small class="text-muted">Contact: marker@vikas.sh</small>
+                    </div>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="markerLicenseCheck" @bind="markerLicenseAgreed">
+                        <label class="form-check-label" for="markerLicenseCheck">
+                            I understand the license terms and accept responsibility for compliance
+                        </label>
+                    </div>
+                    <button class="btn btn-primary btn-sm" @onclick="AcceptMarkerLicense" disabled="@(!markerLicenseAgreed)">
+                        <i class="bi bi-check-circle me-1"></i>Accept and Enable Marker
+                    </button>
+                }
+                else
+                {
+                    <div class="d-flex gap-2 justify-content-end">
+                        @if (!markerVenvExists)
+                        {
+                            <button class="btn btn-primary btn-sm" @onclick="SetupMarker" disabled="@isInstalling">
+                                @if (isInstalling && installingPackage == "marker-setup") { <span class="spinner-border spinner-border-sm me-1"></span> }
+                                <i class="bi bi-plus-circle me-1"></i>Setup Marker
+                                <span class="badge bg-light text-dark ms-1">~3GB models</span>
+                            </button>
+                        }
+                        else if (!markerInstalled)
+                        {
+                            <button class="btn btn-primary btn-sm" @onclick="InstallMarker" disabled="@isInstalling">
+                                @if (isInstalling && installingPackage == "marker") { <span class="spinner-border spinner-border-sm me-1"></span> }
+                                <i class="bi bi-download me-1"></i>Install Marker
+                            </button>
+                            <button class="btn btn-outline-danger btn-sm" @onclick="DeleteMarkerVenv" disabled="@isInstalling"><i class="bi bi-trash me-1"></i>Delete</button>
+                        }
+                        else
+                        {
+                            <button class="btn btn-outline-secondary btn-sm" @onclick="InstallMarker" disabled="@isInstalling"><i class="bi bi-arrow-clockwise me-1"></i>Update</button>
+                            @if (!markerCudaInstalled)
+                            {
+                                <button class="btn btn-success btn-sm" @onclick="InstallMarkerCuda" disabled="@isInstalling">
+                                    @if (isInstalling && installingPackage == "marker-cuda") { <span class="spinner-border spinner-border-sm me-1"></span> }
+                                    <i class="bi bi-gpu-card me-1"></i>Add GPU (CUDA)
+                                </button>
+                            }
+                            else
+                            {
+                                <span class="badge bg-info"><i class="bi bi-gpu-card me-1"></i>GPU Ready</span>
+                            }
+                            <button class="btn btn-outline-danger btn-sm" @onclick="DeleteMarkerVenv" disabled="@isInstalling"><i class="bi bi-trash me-1"></i>Delete</button>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+        }
     </div>
     <!-- 3. Application Settings -->
     <div class="settings-card">
@@ -528,13 +652,14 @@
     private bool isVenvProcessing = false;
     private string venvLog = string.Empty;
 
-    // Engine-specific Venvs
-    private string markitdownVenvPath = string.Empty;
-    private string doclingVenvPath = string.Empty;
-    private string paddleVenvPath = string.Empty;
+    // Venv Base Path (Issue #1: unified venv folder management)
+    private string venvBasePath = string.Empty;
+
+    // Engine-specific Venv status (paths are now derived from VenvBasePath)
     private bool markitdownVenvExists = false;
     private bool doclingVenvExists = false;
     private bool paddleVenvExists = false;
+    private bool markerVenvExists = false;
 
     // Packages
     private bool markitdownInstalled = false;
@@ -551,12 +676,19 @@
     private string? paddleOcrVersion;
     private bool paddleCpuInstalled = false;
     private bool paddleGpuInstalled = false;
+    private bool markerInstalled = false;
+    private string? markerVersion;
+    private bool markerCudaInstalled = false;
     private bool cudaInstalled = false;
     private string? torchVersion;
     private string? cudaVersion;
     private bool isInstalling = false;
     private string installingPackage = string.Empty;
     private string installLog = string.Empty;
+    
+    // Marker license
+    private bool markerLicenseAgreed = false;
+    private bool isAdvancedEnginesExpanded = false;
 
     // App settings
     private bool autoSaveEnabled;
@@ -585,7 +717,7 @@
 
         // Load current settings
         pythonPath = AppState.SystemPythonPath;
-        venvPath = AppState.MarkItDownVenvPath;  // Use MarkItDown venv as default
+        venvBasePath = AppState.VenvBasePath;  // Load venv base path
         autoSaveEnabled = AppState.AutoSaveEnabled;
         language = AppState.Language;
         theme = AppState.Theme;
@@ -601,10 +733,8 @@
         {
             await RefreshVersions();
         }
-        // Load engine-specific venv paths
-        markitdownVenvPath = AppState.MarkItDownVenvPath;
-        doclingVenvPath = AppState.DoclingVenvPath;
-        paddleVenvPath = AppState.PaddleVenvPath;
+        // Load engine-specific venv paths (paths are now derived from VenvBasePath)
+        // (No longer need to load individual paths)
 
         // Check engine venv status
         await CheckEngineVenvStatus();
@@ -890,9 +1020,10 @@
 
     private async Task CheckEngineVenvStatus()
     {
-        markitdownVenvExists = PythonEnv.IsVenvValid(markitdownVenvPath);
-        doclingVenvExists = PythonEnv.IsVenvValid(doclingVenvPath);
-        paddleVenvExists = PythonEnv.IsVenvValid(paddleVenvPath);
+        // Use paths derived from VenvBasePath
+        markitdownVenvExists = PythonEnv.IsVenvValid(AppState.MarkItDownVenvPath);
+        doclingVenvExists = PythonEnv.IsVenvValid(AppState.DoclingVenvPath);
+        paddleVenvExists = PythonEnv.IsVenvValid(AppState.PaddleVenvPath);
         
         AppState.IsMarkItDownVenvActive = markitdownVenvExists;
         AppState.IsDoclingVenvActive = doclingVenvExists;
@@ -901,18 +1032,16 @@
         await Task.CompletedTask;
     }
 
-    #region Venv Path Browse Methods
+    #region Venv Base Path Methods
 
-    private async Task BrowseMarkItDownVenv()
+    private async Task BrowseVenvBasePath()
     {
         try
         {
             var result = await FolderPicker.Default.PickAsync();
             if (result.IsSuccessful)
             {
-                markitdownVenvPath = result.Folder.Path;
-                AppState.MarkItDownVenvPath = markitdownVenvPath;
-                await CheckEngineVenvStatus();
+                venvBasePath = result.Folder.Path;
                 StateHasChanged();
             }
         }
@@ -922,42 +1051,17 @@
         }
     }
 
-    private async Task BrowseDoclingVenv()
+    private async Task ApplyVenvBasePath()
     {
-        try
+        if (string.IsNullOrWhiteSpace(venvBasePath))
         {
-            var result = await FolderPicker.Default.PickAsync();
-            if (result.IsSuccessful)
-            {
-                doclingVenvPath = result.Folder.Path;
-                AppState.DoclingVenvPath = doclingVenvPath;
-                await CheckEngineVenvStatus();
-                StateHasChanged();
-            }
+            return;
         }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"FolderPicker error: {ex.Message}");
-        }
-    }
 
-    private async Task BrowsePaddleVenv()
-    {
-        try
-        {
-            var result = await FolderPicker.Default.PickAsync();
-            if (result.IsSuccessful)
-            {
-                paddleVenvPath = result.Folder.Path;
-                AppState.PaddleVenvPath = paddleVenvPath;
-                await CheckEngineVenvStatus();
-                StateHasChanged();
-            }
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"FolderPicker error: {ex.Message}");
-        }
+        AppState.VenvBasePath = venvBasePath;
+        await CheckEngineVenvStatus();
+        await CheckInstalledPackages();
+        StateHasChanged();
     }
 
     #endregion
@@ -1010,7 +1114,7 @@
         try
         {
             installLog += "Creating virtual environment...\n";
-            var venvResult = await Task.Run(() => PythonEnv.CreateVenvAsync(pythonPath, markitdownVenvPath, log =>
+            var venvResult = await Task.Run(() => PythonEnv.CreateVenvAsync(pythonPath, AppState.MarkItDownVenvPath, log =>
             {
                 installLog += log + "\n";
                 InvokeAsync(StateHasChanged);
@@ -1023,7 +1127,7 @@
             }
 
             installLog += "\nInstalling MarkItDown...\n";
-            var installResult = await Task.Run(() => PythonEnv.InstallMarkItDownAsync(markitdownVenvPath, log =>
+            var installResult = await Task.Run(() => PythonEnv.InstallMarkItDownAsync(AppState.MarkItDownVenvPath, log =>
             {
                 installLog += log + "\n";
                 InvokeAsync(StateHasChanged);
@@ -1053,7 +1157,7 @@
             {
                 isInstalling = true;
                 StateHasChanged();
-                var result = await Task.Run(() => PythonEnv.DeleteVenv(markitdownVenvPath));
+                var result = await Task.Run(() => PythonEnv.DeleteVenv(AppState.MarkItDownVenvPath));
                 installLog = result.message;
                 isInstalling = false;
                 await CheckEngineVenvStatus();
@@ -1065,7 +1169,7 @@
 
     private async Task ReinstallMarkItDown()
     {
-        await Task.Run(() => PythonEnv.DeleteVenv(markitdownVenvPath));
+        await Task.Run(() => PythonEnv.DeleteVenv(AppState.MarkItDownVenvPath));
         await SetupMarkItDown();
     }
 
@@ -1093,7 +1197,7 @@
         try
         {
             installLog += "Creating virtual environment...\n";
-            var venvResult = await Task.Run(() => PythonEnv.CreateVenvAsync(pythonPath, doclingVenvPath, log =>
+            var venvResult = await Task.Run(() => PythonEnv.CreateVenvAsync(pythonPath, AppState.DoclingVenvPath, log =>
             {
                 installLog += log + "\n";
                 InvokeAsync(StateHasChanged);
@@ -1106,7 +1210,7 @@
             }
 
             installLog += "\nInstalling Docling...\n";
-            var installResult = await Task.Run(() => PythonEnv.InstallDoclingAsync(doclingVenvPath, log =>
+            var installResult = await Task.Run(() => PythonEnv.InstallDoclingAsync(AppState.DoclingVenvPath, log =>
             {
                 installLog += log + "\n";
                 InvokeAsync(StateHasChanged);
@@ -1119,7 +1223,7 @@
             {
                 bool isNightly = mode == DoclingMode.Nightly;
                 installLog += $"\nInstalling PyTorch CUDA ({(isNightly ? "12.8 Nightly" : "12.4")})...\n";
-                var cudaResult = await Task.Run(() => PythonEnv.InstallCudaSupportAsync(doclingVenvPath, isNightly, log =>
+                var cudaResult = await Task.Run(() => PythonEnv.InstallCudaSupportAsync(AppState.DoclingVenvPath, isNightly, log =>
                 {
                     installLog += log + "\n";
                     InvokeAsync(StateHasChanged);
@@ -1149,7 +1253,7 @@
             {
                 isInstalling = true;
                 StateHasChanged();
-                var result = await Task.Run(() => PythonEnv.DeleteVenv(doclingVenvPath));
+                var result = await Task.Run(() => PythonEnv.DeleteVenv(AppState.DoclingVenvPath));
                 installLog = result.message;
                 isInstalling = false;
                 await CheckEngineVenvStatus();
@@ -1161,7 +1265,7 @@
 
     private async Task ReinstallDocling()
     {
-        await Task.Run(() => PythonEnv.DeleteVenv(doclingVenvPath));
+        await Task.Run(() => PythonEnv.DeleteVenv(AppState.DoclingVenvPath));
         await SetupDocling(DoclingMode.Gpu); // Default to GPU mode for reinstall
     }
 
@@ -1179,7 +1283,7 @@
         try
         {
             installLog += "Creating virtual environment...\n";
-            var venvResult = await Task.Run(() => PythonEnv.CreateVenvAsync(pythonPath, paddleVenvPath, log =>
+            var venvResult = await Task.Run(() => PythonEnv.CreateVenvAsync(pythonPath, AppState.PaddleVenvPath, log =>
             {
                 installLog += log + "\n";
                 InvokeAsync(StateHasChanged);
@@ -1193,12 +1297,12 @@
 
             installLog += $"\nInstalling PaddleOCR {(useGpu ? "GPU" : "CPU")}...\n";
             var installResult = useGpu
-                ? await Task.Run(() => PythonEnv.InstallPaddleOcrGpuAsync(paddleVenvPath, log =>
+                ? await Task.Run(() => PythonEnv.InstallPaddleOcrGpuAsync(AppState.PaddleVenvPath, log =>
                 {
                     installLog += log + "\n";
                     InvokeAsync(StateHasChanged);
                 }))
-                : await Task.Run(() => PythonEnv.InstallPaddleOcrCpuAsync(paddleVenvPath, log =>
+                : await Task.Run(() => PythonEnv.InstallPaddleOcrCpuAsync(AppState.PaddleVenvPath, log =>
                 {
                     installLog += log + "\n";
                     InvokeAsync(StateHasChanged);
@@ -1228,7 +1332,7 @@
             {
                 isInstalling = true;
                 StateHasChanged();
-                var result = await Task.Run(() => PythonEnv.DeleteVenv(paddleVenvPath));
+                var result = await Task.Run(() => PythonEnv.DeleteVenv(AppState.PaddleVenvPath));
                 installLog = result.message;
                 isInstalling = false;
                 await CheckEngineVenvStatus();
@@ -1236,6 +1340,134 @@
                 StateHasChanged();
             });
         return Task.CompletedTask;
+    }
+
+    // Marker methods
+    private void AcceptMarkerLicense()
+    {
+        AppState.MarkerLicenseAccepted = true;
+        StateHasChanged();
+    }
+
+    private async Task SetupMarker()
+    {
+        isInstalling = true;
+        installingPackage = "marker-setup";
+        installLog = string.Empty;
+        AppState.SetStatus("Setting up Marker environment...", true);
+        StateHasChanged();
+
+        // Create venv
+        var venvResult = await Task.Run(() => PythonEnv.CreateVenvAsync(
+            AppState.SystemPythonPath, 
+            AppState.MarkerVenvPath, 
+            log => { installLog += log + "\n"; InvokeAsync(StateHasChanged); }));
+
+        if (venvResult.success)
+        {
+            installLog += "\nInstalling Marker (this may take 10-30 minutes for model download)...\n";
+            StateHasChanged();
+            
+            var result = await Task.Run(() => PythonEnv.InstallMarkerAsync(AppState.MarkerVenvPath, log =>
+            {
+                installLog += log + "\n";
+                InvokeAsync(StateHasChanged);
+            }));
+            installLog += "\n" + result.message;
+        }
+        else
+        {
+            installLog += "\nFailed to create venv: " + venvResult.message;
+        }
+
+        isInstalling = false;
+        installingPackage = string.Empty;
+        AppState.SetStatus("Ready");
+        await CheckEngineVenvStatus();
+        await CheckInstalledPackages();
+        StateHasChanged();
+    }
+
+    private async Task InstallMarker()
+    {
+        isInstalling = true;
+        installingPackage = "marker";
+        installLog = string.Empty;
+        AppState.SetStatus("Installing Marker...", true);
+        StateHasChanged();
+
+        var result = await Task.Run(() => PythonEnv.InstallMarkerAsync(AppState.MarkerVenvPath, log =>
+        {
+            installLog += log + "\n";
+            InvokeAsync(StateHasChanged);
+        }));
+
+        installLog += "\n" + result.message;
+        isInstalling = false;
+        installingPackage = string.Empty;
+        AppState.SetStatus("Ready");
+        await CheckInstalledPackages();
+        StateHasChanged();
+    }
+
+    private Task DeleteMarkerVenv()
+    {
+        ShowConfirmDialog(
+            "Delete Marker Environment",
+            "Are you sure you want to delete the Marker virtual environment?",
+            "Delete",
+            "btn-danger",
+            async () =>
+            {
+                isInstalling = true;
+                StateHasChanged();
+                var result = await Task.Run(() => PythonEnv.DeleteVenv(AppState.MarkerVenvPath));
+                installLog = result.message;
+                isInstalling = false;
+                markerVenvExists = false;
+                markerInstalled = false;
+                markerVersion = null;
+                await CheckEngineVenvStatus();
+                StateHasChanged();
+            });
+        return Task.CompletedTask;
+    }
+
+    private async Task InstallMarkerCuda()
+    {
+        isInstalling = true;
+        installingPackage = "marker-cuda";
+        installLog = string.Empty;
+        AppState.SetStatus("Installing CUDA support for Marker (Nightly for RTX 50-series)...", true);
+        StateHasChanged();
+
+        // Install PyTorch Nightly with CUDA 12.8 (required for RTX 50-series sm_120)
+        var result = await Task.Run(() => PythonEnv.InstallCudaSupportAsync(AppState.MarkerVenvPath, true, log =>
+        {
+            installLog += log + "\n";
+            InvokeAsync(StateHasChanged);
+        }));
+
+        // Downgrade Pillow to compatible version for marker-pdf
+        if (result.success)
+        {
+            installLog += "\nDowngrading Pillow for marker-pdf compatibility...\n";
+            InvokeAsync(StateHasChanged);
+            
+            var pillowResult = await PythonEnv.RunPipInstallAsync(
+                AppState.MarkerVenvPath, 
+                "install \"pillow>=10.1.0,<11.0.0\"",
+                log => { installLog += log + "\n"; InvokeAsync(StateHasChanged); });
+            
+            installLog += pillowResult.success ? "\nPillow downgrade completed." : $"\nPillow downgrade failed: {pillowResult.message}";
+        }
+
+        installLog += "\n" + result.message;
+        isInstalling = false;
+        installingPackage = string.Empty;
+        AppState.SetStatus("Ready");
+        await CheckInstalledPackages();
+        StateHasChanged();
     }
 
     #endregion
@@ -1255,7 +1487,7 @@
 
         if (result.success)
         {
-            AppState.MarkItDownVenvPath = venvPath;
+            // VenvPath is now derived from VenvBasePath, no need to set individually
             venvLog += "\n" + result.message;
         }
         else
@@ -1349,45 +1581,58 @@
 
     private async Task CheckInstalledPackages()
     {
-        // MarkItDown - uses markitdownVenvPath
-        var markitdown = await PythonEnv.CheckMarkItDownAsync(markitdownVenvPath);
+        // MarkItDown - uses AppState.MarkItDownVenvPath
+        var markitdown = await PythonEnv.CheckMarkItDownAsync(AppState.MarkItDownVenvPath);
         markitdownInstalled = markitdown.installed;
         markitdownVersion = markitdown.version;
         AppState.MarkItDownVersion = markitdown.version;
 
-        // Docling and OCR engines - uses doclingVenvPath
-        var docling = await PythonEnv.CheckDoclingAsync(doclingVenvPath);
+        // Docling and OCR engines - uses AppState.DoclingVenvPath
+        var docling = await PythonEnv.CheckDoclingAsync(AppState.DoclingVenvPath);
         doclingInstalled = docling.installed;
         doclingVersion = docling.version;
         AppState.DoclingVersion = docling.version;
 
-        var easyocr = await PythonEnv.CheckEasyOcrAsync(doclingVenvPath);
+        var easyocr = await PythonEnv.CheckEasyOcrAsync(AppState.DoclingVenvPath);
         easyocrInstalled = easyocr.installed;
         easyocrVersion = easyocr.version;
 
-        var rapidocr = await PythonEnv.CheckRapidOcrAsync(doclingVenvPath);
+        var rapidocr = await PythonEnv.CheckRapidOcrAsync(AppState.DoclingVenvPath);
         rapidocrInstalled = rapidocr.installed;
         rapidocrVersion = rapidocr.version;
 
-        var rapidocrv5 = await PythonEnv.CheckRapidOcrV5Async(doclingVenvPath);
+        var rapidocrv5 = await PythonEnv.CheckRapidOcrV5Async(AppState.DoclingVenvPath);
         rapidocrV5Installed = rapidocrv5.installed;
         rapidocrV5Version = rapidocrv5.version;
 
-        var cuda = await PythonEnv.CheckCudaAsync(doclingVenvPath);
+        var cuda = await PythonEnv.CheckCudaAsync(AppState.DoclingVenvPath);
         cudaInstalled = cuda.installed;
         torchVersion = cuda.torchVersion;
         cudaVersion = cuda.cudaVersion;
 
-        // PaddleOCR - uses paddleVenvPath
-        var paddle = await PythonEnv.CheckPaddleOcrAsync(paddleVenvPath);
+        // PaddleOCR - uses AppState.PaddleVenvPath
+        var paddle = await PythonEnv.CheckPaddleOcrAsync(AppState.PaddleVenvPath);
         paddleOcrInstalled = paddle.installed;
         paddleOcrVersion = paddle.version;
 
-        var paddleCpu = await PythonEnv.CheckPaddleCpuAsync(paddleVenvPath);
+        var paddleCpu = await PythonEnv.CheckPaddleCpuAsync(AppState.PaddleVenvPath);
         paddleCpuInstalled = paddleCpu.installed;
 
-        var paddleGpu = await PythonEnv.CheckPaddleGpuAsync(paddleVenvPath);
+        var paddleGpu = await PythonEnv.CheckPaddleGpuAsync(AppState.PaddleVenvPath);
         paddleGpuInstalled = paddleGpu.installed;
+        
+        // Marker - uses AppState.MarkerVenvPath
+        markerVenvExists = PythonEnv.IsVenvValid(AppState.MarkerVenvPath);
+        if (markerVenvExists)
+        {
+            var marker = await PythonEnv.CheckMarkerAsync(AppState.MarkerVenvPath);
+            markerInstalled = marker.installed;
+            markerVersion = marker.version;
+            
+            // Check if CUDA is installed for Marker
+            var markerCuda = await PythonEnv.CheckCudaAsync(AppState.MarkerVenvPath);
+            markerCudaInstalled = markerCuda.installed;
+        }
     }
 
     private async Task InstallMarkItDown()
@@ -1398,7 +1643,7 @@
         AppState.SetStatus("Installing MarkItDown...", true);
         StateHasChanged();
 
-        var result = await Task.Run(() => PythonEnv.InstallMarkItDownAsync(markitdownVenvPath, log =>
+        var result = await Task.Run(() => PythonEnv.InstallMarkItDownAsync(AppState.MarkItDownVenvPath, log =>
         {
             installLog += log + "\n";
             InvokeAsync(StateHasChanged);
@@ -1433,7 +1678,7 @@
         AppState.SetStatus($"Installing Docling ({modeLabel})...", true);
         StateHasChanged();
 
-        var result = await Task.Run(() => PythonEnv.InstallDoclingAsync(doclingVenvPath, log =>
+        var result = await Task.Run(() => PythonEnv.InstallDoclingAsync(AppState.DoclingVenvPath, log =>
         {
             installLog += log + "\n";
             InvokeAsync(StateHasChanged);
@@ -1446,7 +1691,7 @@
         {
             bool isNightly = mode == DoclingMode.Nightly;
             installLog += $"\nInstalling PyTorch CUDA ({(isNightly ? "12.8 Nightly" : "12.4")})...\n";
-            var cudaResult = await Task.Run(() => PythonEnv.InstallCudaSupportAsync(doclingVenvPath, isNightly, log =>
+            var cudaResult = await Task.Run(() => PythonEnv.InstallCudaSupportAsync(AppState.DoclingVenvPath, isNightly, log =>
             {
                 installLog += log + "\n";
                 InvokeAsync(StateHasChanged);
@@ -1469,7 +1714,7 @@
         AppState.SetStatus("Installing EasyOCR...", true);
         StateHasChanged();
 
-        var result = await Task.Run(() => PythonEnv.InstallEasyOcrAsync(doclingVenvPath, log =>
+        var result = await Task.Run(() => PythonEnv.InstallEasyOcrAsync(AppState.DoclingVenvPath, log =>
         {
             installLog += log + "\n";
             InvokeAsync(StateHasChanged);
@@ -1490,7 +1735,7 @@
         AppState.SetStatus("Installing RapidOCR...", true);
         StateHasChanged();
 
-        var result = await Task.Run(() => PythonEnv.InstallRapidOcrAsync(doclingVenvPath, log =>
+        var result = await Task.Run(() => PythonEnv.InstallRapidOcrAsync(AppState.DoclingVenvPath, log =>
         {
             installLog += log + "\n";
             InvokeAsync(StateHasChanged);
@@ -1512,7 +1757,7 @@
         AppState.SetStatus("Installing RapidOCR v5 (PP-OCRv5)...", true);
         StateHasChanged();
 
-        var result = await Task.Run(() => PythonEnv.InstallRapidOcrV5Async(doclingVenvPath, log =>
+        var result = await Task.Run(() => PythonEnv.InstallRapidOcrV5Async(AppState.DoclingVenvPath, log =>
         {
             installLog += log + "\n";
             InvokeAsync(StateHasChanged);
@@ -1534,7 +1779,7 @@
         AppState.SetStatus("Installing PaddleOCR (CPU)...", true);
         StateHasChanged();
 
-        var result = await Task.Run(() => PythonEnv.InstallPaddleOcrCpuAsync(paddleVenvPath, log =>
+        var result = await Task.Run(() => PythonEnv.InstallPaddleOcrCpuAsync(AppState.PaddleVenvPath, log =>
         {
             installLog += log + "\n";
             InvokeAsync(StateHasChanged);
@@ -1556,7 +1801,7 @@
         AppState.SetStatus("Installing PaddleOCR (GPU)...", true);
         StateHasChanged();
 
-        var result = await Task.Run(() => PythonEnv.InstallPaddleOcrGpuAsync(paddleVenvPath, log =>
+        var result = await Task.Run(() => PythonEnv.InstallPaddleOcrGpuAsync(AppState.PaddleVenvPath, log =>
         {
             installLog += log + "\n";
             InvokeAsync(StateHasChanged);
@@ -1578,7 +1823,7 @@
         AppState.SetStatus("Installing CUDA support...", true);
         StateHasChanged();
 
-        var result = await Task.Run(() => PythonEnv.InstallCudaSupportAsync(doclingVenvPath, useNightly, log =>
+        var result = await Task.Run(() => PythonEnv.InstallCudaSupportAsync(AppState.DoclingVenvPath, useNightly, log =>
         {
             installLog += log + "\n";
             InvokeAsync(StateHasChanged);
@@ -1625,12 +1870,12 @@
             if (result.success)
             {
                 successCount++;
-                installLog += $"✓ {name} installed successfully.\n";
+                installLog += $"✁E{name} installed successfully.\n";
             }
             else
             {
                 failCount++;
-                installLog += $"✗ {name} failed: {result.message}\n";
+                installLog += $"✁E{name} failed: {result.message}\n";
             }
             await InvokeAsync(StateHasChanged);
         }
@@ -1655,7 +1900,7 @@
         AppState.SetStatus("Uninstalling MarkItDown...", true);
         StateHasChanged();
 
-        var result = await Task.Run(() => PythonEnv.UninstallMarkItDownAsync(markitdownVenvPath, log =>
+        var result = await Task.Run(() => PythonEnv.UninstallMarkItDownAsync(AppState.MarkItDownVenvPath, log =>
         {
             installLog += log + "\n";
             InvokeAsync(StateHasChanged);
@@ -1677,7 +1922,7 @@
         AppState.SetStatus("Uninstalling Docling...", true);
         StateHasChanged();
 
-        var result = await Task.Run(() => PythonEnv.UninstallDoclingAsync(doclingVenvPath, log =>
+        var result = await Task.Run(() => PythonEnv.UninstallDoclingAsync(AppState.DoclingVenvPath, log =>
         {
             installLog += log + "\n";
             InvokeAsync(StateHasChanged);
@@ -1699,7 +1944,7 @@
         AppState.SetStatus("Uninstalling EasyOCR...", true);
         StateHasChanged();
 
-        var result = await Task.Run(() => PythonEnv.UninstallEasyOcrAsync(doclingVenvPath, log =>
+        var result = await Task.Run(() => PythonEnv.UninstallEasyOcrAsync(AppState.DoclingVenvPath, log =>
         {
             installLog += log + "\n";
             InvokeAsync(StateHasChanged);
@@ -1721,7 +1966,7 @@
         AppState.SetStatus("Uninstalling RapidOCR...", true);
         StateHasChanged();
 
-        var result = await Task.Run(() => PythonEnv.UninstallRapidOcrAsync(doclingVenvPath, log =>
+        var result = await Task.Run(() => PythonEnv.UninstallRapidOcrAsync(AppState.DoclingVenvPath, log =>
         {
             installLog += log + "\n";
             InvokeAsync(StateHasChanged);
@@ -1743,7 +1988,7 @@
         AppState.SetStatus("Uninstalling PaddleOCR (CPU)...", true);
         StateHasChanged();
 
-        var result = await Task.Run(() => PythonEnv.UninstallPaddleOcrCpuAsync(paddleVenvPath, log =>
+        var result = await Task.Run(() => PythonEnv.UninstallPaddleOcrCpuAsync(AppState.PaddleVenvPath, log =>
         {
             installLog += log + "\n";
             InvokeAsync(StateHasChanged);
@@ -1765,7 +2010,7 @@
         AppState.SetStatus("Uninstalling PaddleOCR (GPU)...", true);
         StateHasChanged();
 
-        var result = await Task.Run(() => PythonEnv.UninstallPaddleOcrGpuAsync(paddleVenvPath, log =>
+        var result = await Task.Run(() => PythonEnv.UninstallPaddleOcrGpuAsync(AppState.PaddleVenvPath, log =>
         {
             installLog += log + "\n";
             InvokeAsync(StateHasChanged);
@@ -1807,7 +2052,7 @@
 
         // First uninstall CPU version
         installLog += "=== Uninstalling CPU version ===\n";
-        var uninstallResult = await Task.Run(() => PythonEnv.UninstallPaddleOcrCpuAsync(paddleVenvPath, log =>
+        var uninstallResult = await Task.Run(() => PythonEnv.UninstallPaddleOcrCpuAsync(AppState.PaddleVenvPath, log =>
         {
             installLog += log + "\n";
             InvokeAsync(StateHasChanged);
@@ -1816,7 +2061,7 @@
 
         // Then install GPU version
         installLog += "=== Installing GPU version ===\n";
-        var installResult = await Task.Run(() => PythonEnv.InstallPaddleOcrGpuAsync(paddleVenvPath, log =>
+        var installResult = await Task.Run(() => PythonEnv.InstallPaddleOcrGpuAsync(AppState.PaddleVenvPath, log =>
         {
             installLog += log + "\n";
             InvokeAsync(StateHasChanged);
@@ -1843,7 +2088,7 @@
 
         // First uninstall GPU version
         installLog += "=== Uninstalling GPU version ===\n";
-        var uninstallResult = await Task.Run(() => PythonEnv.UninstallPaddleOcrGpuAsync(paddleVenvPath, log =>
+        var uninstallResult = await Task.Run(() => PythonEnv.UninstallPaddleOcrGpuAsync(AppState.PaddleVenvPath, log =>
         {
             installLog += log + "\n";
             InvokeAsync(StateHasChanged);
@@ -1852,7 +2097,7 @@
 
         // Then install CPU version
         installLog += "=== Installing CPU version ===\n";
-        var installResult = await Task.Run(() => PythonEnv.InstallPaddleOcrCpuAsync(paddleVenvPath, log =>
+        var installResult = await Task.Run(() => PythonEnv.InstallPaddleOcrCpuAsync(AppState.PaddleVenvPath, log =>
         {
             installLog += log + "\n";
             InvokeAsync(StateHasChanged);

@@ -18,10 +18,67 @@ OUTPUT_DIR = TESTS_DIR / "Output"
 # Add Resources/Python to path for importing main scripts
 sys.path.insert(0, str(RESOURCES_PYTHON))
 
-# Venv paths
-LOCALAPPDATA = os.environ.get('LOCALAPPDATA', os.path.expanduser('~'))
-DOCLING_VENV = Path(LOCALAPPDATA) / "MarkBridge" / ".venv_docling"
-MODELS_DIR = Path(LOCALAPPDATA) / "MarkBridge" / "models"
+# Base app directory
+LOCALAPPDATA = os.environ.get('LOCALAPPDATA', os.environ.get('USERPROFILE', ''))
+if not LOCALAPPDATA:
+    LOCALAPPDATA = str(Path.home() / "AppData" / "Local")
+
+BASE_APP_DIR = Path(LOCALAPPDATA) / "MarkBridge"
+
+# Production venv paths
+MARKITDOWN_VENV = BASE_APP_DIR / ".venv_markitdown"
+DOCLING_VENV = BASE_APP_DIR / ".venv_docling"
+PADDLE_VENV = BASE_APP_DIR / ".venv_paddle"
+MODELS_DIR = BASE_APP_DIR / "models"
+
+# Test venv paths (isolated from production)
+TEST_VENV_MARKITDOWN = BASE_APP_DIR / ".venv_test_markitdown"
+TEST_VENV_DOCLING = BASE_APP_DIR / ".venv_test_docling"
+TEST_VENV_PADDLE = BASE_APP_DIR / ".venv_test_paddle"
+
+
+def get_production_venv(engine):
+    """Get path to production venv for specified engine"""
+    engine = engine.lower()
+    if engine == "markitdown":
+        return MARKITDOWN_VENV
+    elif engine == "docling":
+        return DOCLING_VENV
+    elif engine in ("paddle", "paddleocr"):
+        return PADDLE_VENV
+    else:
+        return DOCLING_VENV  # Default
+
+
+def get_test_venv(engine):
+    """Get path to test venv for specified engine"""
+    engine = engine.lower()
+    if engine == "markitdown":
+        return TEST_VENV_MARKITDOWN
+    elif engine == "docling":
+        return TEST_VENV_DOCLING
+    elif engine in ("paddle", "paddleocr"):
+        return TEST_VENV_PADDLE
+    else:
+        return TEST_VENV_DOCLING  # Default
+
+
+def get_test_python(engine):
+    """Get path to python executable in test venv"""
+    venv = get_test_venv(engine)
+    if sys.platform == "win32":
+        return venv / "Scripts" / "python.exe"
+    else:
+        return venv / "bin" / "python"
+
+
+def get_production_python(engine):
+    """Get path to python executable in production venv"""
+    venv = get_production_venv(engine)
+    if sys.platform == "win32":
+        return venv / "Scripts" / "python.exe"
+    else:
+        return venv / "bin" / "python"
 
 
 def ensure_output_dir():
@@ -51,9 +108,12 @@ def print_result(ok, message):
     print(f"  {status} {message}")
 
 
-def check_venv():
-    """Check if Docling venv exists"""
-    python_path = DOCLING_VENV / "Scripts" / "python.exe"
+def check_venv(engine="docling", production=True):
+    """Check if venv exists for specified engine"""
+    if production:
+        python_path = get_production_python(engine)
+    else:
+        python_path = get_test_python(engine)
     return python_path.exists()
 
 
@@ -64,5 +124,13 @@ if __name__ == "__main__":
     print(f"Resources/Python:   {RESOURCES_PYTHON}")
     print(f"Fixtures:           {FIXTURES_DIR}")
     print(f"Output:             {OUTPUT_DIR}")
-    print(f"Docling Venv:       {DOCLING_VENV}")
-    print(f"Venv Exists:        {check_venv()}")
+    print(f"\nProduction Venvs:")
+    for engine in ["markitdown", "docling", "paddle"]:
+        venv = get_production_venv(engine)
+        exists = "Yes" if check_venv(engine, True) else "No"
+        print(f"  {engine:15} {venv} (exists: {exists})")
+    print(f"\nTest Venvs:")
+    for engine in ["markitdown", "docling", "paddle"]:
+        venv = get_test_venv(engine)
+        exists = "Yes" if check_venv(engine, False) else "No"
+        print(f"  {engine:15} {venv} (exists: {exists})")
