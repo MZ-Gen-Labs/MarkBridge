@@ -187,8 +187,7 @@ def convert_document(input_path, output_path, use_gpu=False, force_ocr=False, en
             result.document.save_as_markdown(Path(output_path), image_mode=ImageRefMode.REFERENCED)
             print(f"  Images saved alongside markdown file")
             
-            # Save table images and append links to markdown
-            # Tables are not included in save_as_markdown, so we need to handle them separately
+            # Save table images
             output_dir_path = Path(output_dir) if output_dir else Path(".")
             tables_saved = []
             for i, table in enumerate(result.document.tables):
@@ -200,11 +199,71 @@ def convert_document(input_path, output_path, use_gpu=False, force_ocr=False, en
             
             if tables_saved:
                 print(f"  Saved {len(tables_saved)} table images")
-                # Append table image links to the markdown file
-                with open(output_path, 'a', encoding='utf-8') as f:
-                    f.write("\n\n## Table Images\n\n")
-                    for img_name in tables_saved:
-                        f.write(f"![{img_name}]({img_name})\n\n")
+                
+                # Insert table image links at table positions in markdown
+                with open(output_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                
+                # Strategy 1: Find table blocks (lines starting with |) and insert image after each
+                lines = content.split('\n')
+                new_lines = []
+                table_index = 0
+                in_table = False
+                
+                for i, line in enumerate(lines):
+                    new_lines.append(line)
+                    
+                    # Detect table start (line starting with |)
+                    if line.strip().startswith('|'):
+                        in_table = True
+                    # Detect table end (previous was table, current is not)
+                    elif in_table:
+                        in_table = False
+                        # Insert table image link after table
+                        if table_index < len(tables_saved):
+                            img_name = tables_saved[table_index]
+                            new_lines.append(f"\n![Table {table_index + 1}]({img_name})")
+                            table_index += 1
+                
+                # Handle case where table is at end of document
+                if in_table and table_index < len(tables_saved):
+                    img_name = tables_saved[table_index]
+                    new_lines.append(f"\n![Table {table_index + 1}]({img_name})")
+                    table_index += 1
+                
+                # Strategy 2: If no table blocks found (OCR disabled), find caption patterns
+                # Common patterns: "図1:", "Table 1:", "蝗ｳ1:" (garbled for 図1)
+                if table_index == 0 and tables_saved:
+                    import re
+                    new_lines = []
+                    table_index = 0
+                    # Match patterns like: 図1:, 図2:, Table 1:, 蝗ｳ1: (garbled), followed by description
+                    caption_pattern = re.compile(r'^(.*?)((?:図|蝗ｳ|Table|表)\s*\d+\s*[:：].*?)(\s*)$', re.IGNORECASE)
+                    
+                    for line in lines:
+                        match = caption_pattern.match(line)
+                        if match and table_index < len(tables_saved):
+                            # Insert image link after this caption line
+                            new_lines.append(line)
+                            img_name = tables_saved[table_index]
+                            new_lines.append(f"\n![Table {table_index + 1}]({img_name})")
+                            table_index += 1
+                        else:
+                            new_lines.append(line)
+                
+                # Strategy 3: If still nothing found, append at the end
+                remaining = len(tables_saved) - table_index
+                if remaining > 0:
+                    new_lines.append("\n\n## Table Images\n")
+                    for i in range(table_index, len(tables_saved)):
+                        img_name = tables_saved[i]
+                        new_lines.append(f"\n![Table {i + 1}]({img_name})")
+                
+                # Write updated content
+                with open(output_path, 'w', encoding='utf-8') as f:
+                    f.write('\n'.join(new_lines))
+                
+                print(f"  Inserted {len(tables_saved)} table image links")
         else:
             # Placeholder mode: no images
             markdown_content = result.document.export_to_markdown()
