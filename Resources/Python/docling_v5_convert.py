@@ -136,7 +136,7 @@ def convert_document(input_path, output_path, use_gpu=False, force_ocr=False, en
         pipeline_options.images_scale = 1.0
         pipeline_options.generate_picture_images = True
         pipeline_options.generate_page_images = True  # Also generate page images
-        pipeline_options.generate_table_images = True  # Export tables as images too
+        pipeline_options.generate_table_images = True  # Generate table images for export
     
     # Configure format options
     pdf_options = PdfFormatOption(
@@ -187,16 +187,24 @@ def convert_document(input_path, output_path, use_gpu=False, force_ocr=False, en
             result.document.save_as_markdown(Path(output_path), image_mode=ImageRefMode.REFERENCED)
             print(f"  Images saved alongside markdown file")
             
-            # Also save table images (generate_table_images provides table.image)
+            # Save table images and append links to markdown
+            # Tables are not included in save_as_markdown, so we need to handle them separately
             output_dir_path = Path(output_dir) if output_dir else Path(".")
-            tables_saved = 0
+            tables_saved = []
             for i, table in enumerate(result.document.tables):
                 if hasattr(table, 'image') and table.image is not None:
-                    table_img_path = output_dir_path / f"table_{i}.png"
+                    table_img_name = f"table_{i}.png"
+                    table_img_path = output_dir_path / table_img_name
                     table.image.pil_image.save(table_img_path)
-                    tables_saved += 1
-            if tables_saved > 0:
-                print(f"  Saved {tables_saved} table images")
+                    tables_saved.append(table_img_name)
+            
+            if tables_saved:
+                print(f"  Saved {len(tables_saved)} table images")
+                # Append table image links to the markdown file
+                with open(output_path, 'a', encoding='utf-8') as f:
+                    f.write("\n\n## Table Images\n\n")
+                    for img_name in tables_saved:
+                        f.write(f"![{img_name}]({img_name})\n\n")
         else:
             # Placeholder mode: no images
             markdown_content = result.document.export_to_markdown()
