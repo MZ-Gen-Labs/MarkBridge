@@ -200,68 +200,116 @@ def convert_document(input_path, output_path, use_gpu=False, force_ocr=False, en
             if tables_saved:
                 print(f"  Saved {len(tables_saved)} table images")
                 
-                # Insert table image links at table positions in markdown
+                # Insert table image links into markdown file
                 with open(output_path, 'r', encoding='utf-8') as f:
                     content = f.read()
                 
-                # Strategy 1: Find table blocks (lines starting with |) and insert image after each
+                # Strategy: Find table position in document body and match with markdown
+                # Get text items that come after each table
+                from docling_core.types.doc import RefItem
+                
+                table_contexts = {}  # table_ref -> text that follows
+                # We need to access the body children. 
+                # result.document.body.children is an iterator/list of Items
+                body_children = list(result.document.body.children)
+                
+                for idx, item in enumerate(body_children):
+                    if isinstance(item, RefItem) and str(item.cref).startswith('#/tables/'):
+                        table_ref = str(item.cref)
+                        # Get the next text item after this table
+                        for next_idx in range(idx + 1, min(idx + 5, len(body_children))):
+                            next_item = body_children[next_idx]
+                            if isinstance(next_item, RefItem):
+                                next_ref = str(next_item.cref)
+                                if next_ref.startswith('#/texts/'):
+                                    try:
+                                        text_idx = int(next_ref.split('/')[-1])
+                                        if text_idx < len(result.document.texts):
+                                            text_item = result.document.texts[text_idx]
+                                            if hasattr(text_item, 'text') and text_item.text:
+                                                # Use first 30 chars as marker
+                                                marker = text_item.text[:30].strip()
+                                                if marker:
+                                                    table_contexts[table_ref] = marker
+                                                    break
+                                    except (ValueError, IndexError):
+                                        pass
+                
+                # Insert image links before the text that follows each table
                 lines = content.split('\n')
-                new_lines = []
-                table_index = 0
-                in_table = False
+                new_content = content
                 
-                for i, line in enumerate(lines):
-                    new_lines.append(line)
-                    
-                    # Detect table start (line starting with |)
-                    if line.strip().startswith('|'):
-                        in_table = True
-                    # Detect table end (previous was table, current is not)
-                    elif in_table:
-                        in_table = False
-                        # Insert table image link after table
-                        if table_index < len(tables_saved):
-                            img_name = tables_saved[table_index]
-                            new_lines.append(f"\n![Table {table_index + 1}]({img_name})")
-                            table_index += 1
+                # tables_saved list in this script is just filenames, we need to re-associate with refs
+                # We iterate tables again to map index to ref
+                table_refs_map = {}
+                for i, table in enumerate(result.document.tables):
+                     if hasattr(table, 'image') and table.image is not None and i < len(tables_saved):
+                         table_refs_map[i] = table.self_ref
+
+                inserted_indices = set()
                 
-                # Handle case where table is at end of document
-                if in_table and table_index < len(tables_saved):
-                    img_name = tables_saved[table_index]
-                    new_lines.append(f"\n![Table {table_index + 1}]({img_name})")
-                    table_index += 1
+                for i, img_name in enumerate(tables_saved):
+                    table_ref = table_refs_map.get(i)
+                    if table_ref and table_ref in table_contexts:
+                        marker = table_contexts[table_ref]
+                        # Find the marker in content and insert image before it
+                        import re
+                        # Escape special regex characters
+                        escaped_marker = re.escape(marker)
+                        pattern = f"({escaped_marker})"
+                        replacement = f"![Table {i + 1}]({img_name})\n\n\\1"
+                        new_content, count = re.subn(pattern, replacement, new_content, count=1)
+                        if count > 0:
+                            inserted_indices.add(i)
+                    else:
+                        # Fallback: check if markdown table exists (for OCR enabled case)
+                        pass
                 
-                # Strategy 2: If no table blocks found (OCR disabled), find caption patterns
-                # Common patterns: "図1:", "Table 1:", "蝗ｳ1:" (garbled for 図1)
-                if table_index == 0 and tables_saved:
-                    import re
-                    new_lines = []
+                # Strategy 2: If no context found (or fallback needed), check for markdown table blocks
+                # This handles cases where OCR is enabled and table is rendered as markdown table
+                if len(inserted_indices) < len(tables_saved):
+                    lines = new_content.split('\n')
+                    new_lines_strategy2 = []
                     table_index = 0
-                    # Match patterns like: 図1:, 図2:, Table 1:, 蝗ｳ1: (garbled), followed by description
-                    caption_pattern = re.compile(r'^(.*?)((?:図|蝗ｳ|Table|表)\s*\d+\s*[:：].*?)(\s*)$', re.IGNORECASE)
+                    in_table = False
                     
                     for line in lines:
-                        match = caption_pattern.match(line)
-                        if match and table_index < len(tables_saved):
-                            # Insert image link after this caption line
-                            new_lines.append(line)
-                            img_name = tables_saved[table_index]
-                            new_lines.append(f"\n![Table {table_index + 1}]({img_name})")
+                        new_lines_strategy2.append(line)
+                        if line.strip().startswith('|'):
+                            in_table = True
+                        elif in_table:
+                            in_table = False
+                            # Try to insert next available table
+                            while table_index < len(tables_saved) and table_index in inserted_indices:
+                                table_index += 1
+                                
+                            if table_index < len(tables_saved):
+                                img_name = tables_saved[table_index]
+                                new_lines_strategy2.append(f"\n![Table {table_index + 1}]({img_name})")
+                                inserted_indices.add(table_index)
+                                table_index += 1
+
+                    if in_table: # End of doc table
+                        while table_index < len(tables_saved) and table_index in inserted_indices:
                             table_index += 1
-                        else:
-                            new_lines.append(line)
-                
-                # Strategy 3: If still nothing found, append at the end
-                remaining = len(tables_saved) - table_index
-                if remaining > 0:
-                    new_lines.append("\n\n## Table Images\n")
-                    for i in range(table_index, len(tables_saved)):
-                        img_name = tables_saved[i]
-                        new_lines.append(f"\n![Table {i + 1}]({img_name})")
-                
+                        if table_index < len(tables_saved):
+                             img_name = tables_saved[table_index]
+                             new_lines_strategy2.append(f"\n![Table {table_index + 1}]({img_name})")
+                             inserted_indices.add(table_index)
+
+                    new_content = '\n'.join(new_lines_strategy2)
+
+                # Strategy 3: Append remaining at end
+                remaining_indices = [i for i in range(len(tables_saved)) if i not in inserted_indices]
+                if remaining_indices:
+                    new_content += "\n\n## Table Images\n"
+                    for i in remaining_indices:
+                         img_name = tables_saved[i]
+                         new_content += f"\n![Table {i + 1}]({img_name})"
+
                 # Write updated content
                 with open(output_path, 'w', encoding='utf-8') as f:
-                    f.write('\n'.join(new_lines))
+                    f.write(new_content)
                 
                 print(f"  Inserted {len(tables_saved)} table image links")
         else:
