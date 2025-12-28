@@ -74,6 +74,22 @@ public class AppStateService
         : Path.Combine(_settings.VenvBasePath, ".venv_paddle");
 
     /// <summary>
+    /// Virtual environment path for Marker engine (read-only, derived from VenvBasePath)
+    /// </summary>
+    public string MarkerVenvPath => string.IsNullOrEmpty(_settings.VenvBasePath) 
+        ? string.Empty 
+        : Path.Combine(_settings.VenvBasePath, ".venv_marker");
+
+    /// <summary>
+    /// Whether user has accepted the Marker commercial license terms
+    /// </summary>
+    public bool MarkerLicenseAccepted
+    {
+        get => _settings.MarkerLicenseAccepted;
+        set { _settings.MarkerLicenseAccepted = value; NotifyStateChanged(); }
+    }
+
+    /// <summary>
     /// Update individual venv paths when base path changes (for internal use)
     /// </summary>
     private void UpdateVenvPaths()
@@ -170,6 +186,18 @@ public class AppStateService
     {
         get => _settings.UsePaddleOcrGpu;
         set { _settings.UsePaddleOcrGpu = value; NotifyStateChanged(); }
+    }
+
+    public bool UseMarkerCpu
+    {
+        get => _settings.UseMarkerCpu;
+        set { _settings.UseMarkerCpu = value; NotifyStateChanged(); }
+    }
+
+    public bool UseMarkerGpu
+    {
+        get => _settings.UseMarkerGpu;
+        set { _settings.UseMarkerGpu = value; NotifyStateChanged(); }
     }
 
     /// <summary>
@@ -385,6 +413,11 @@ public class AppSettings
     
     // Output file handling
     public OutputOverwriteMode OutputOverwriteMode { get; set; } = OutputOverwriteMode.Overwrite;
+    
+    // Marker engine settings (Advanced option with license agreement)
+    public bool UseMarkerCpu { get; set; } = false;
+    public bool UseMarkerGpu { get; set; } = false;
+    public bool MarkerLicenseAccepted { get; set; } = false;
 }
 
 /// <summary>
@@ -406,7 +439,9 @@ public enum ConversionEngine
     Docling,
     DoclingGpu,
     PaddleOcrCpu,
-    PaddleOcrGpu
+    PaddleOcrGpu,
+    MarkerCpu,
+    MarkerGpu
 }
 
 /// <summary>
@@ -449,6 +484,8 @@ public class QueueItem
                 ConversionEngine.DoclingGpu => "Docling (GPU)",
                 ConversionEngine.PaddleOcrCpu => "PaddleOCR (CPU)",
                 ConversionEngine.PaddleOcrGpu => "PaddleOCR (GPU)",
+                ConversionEngine.MarkerCpu => "Marker (CPU)",
+                ConversionEngine.MarkerGpu => "Marker (GPU)",
                 _ => "Auto"
             };
             
@@ -487,6 +524,8 @@ public class QueueItem
                 ConversionEngine.DoclingGpu => "_dlg",   // Docling GPU
                 ConversionEngine.PaddleOcrCpu => "_pdc", // PaddleOCR CPU
                 ConversionEngine.PaddleOcrGpu => "_pdg", // PaddleOCR GPU
+                ConversionEngine.MarkerCpu => "_mkc",    // Marker CPU
+                ConversionEngine.MarkerGpu => "_mkg",    // Marker GPU
                 _ => ""
             };
             

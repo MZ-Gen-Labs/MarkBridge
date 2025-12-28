@@ -54,6 +54,7 @@ public class ConversionService
                 ConversionEngine.MarkItDown => _appState.MarkItDownVenvPath,
                 ConversionEngine.Docling or ConversionEngine.DoclingGpu => _appState.DoclingVenvPath,
                 ConversionEngine.PaddleOcrCpu or ConversionEngine.PaddleOcrGpu => _appState.PaddleVenvPath,
+                ConversionEngine.MarkerCpu or ConversionEngine.MarkerGpu => _appState.MarkerVenvPath,
                 _ => _appState.MarkItDownVenvPath
             };
             var pythonPath = _pythonEnv.GetVenvPythonPath(venvPath);
@@ -98,6 +99,12 @@ public class ConversionService
                     break;
                 case ConversionEngine.PaddleOcrGpu:
                     result = await RunPaddleOcrAsync(pythonPath, inputPath, fullOutputPath, true, cancellationToken, onProgress);
+                    break;
+                case ConversionEngine.MarkerCpu:
+                    result = await RunMarkerAsync(pythonPath, inputPath, fullOutputPath, false, options, cancellationToken, onProgress);
+                    break;
+                case ConversionEngine.MarkerGpu:
+                    result = await RunMarkerAsync(pythonPath, inputPath, fullOutputPath, true, options, cancellationToken, onProgress);
                     break;
                 default:
                     return new ConversionResult
@@ -169,6 +176,8 @@ public class ConversionService
             ConversionEngine.DoclingGpu => "_dlg",   // Docling GPU
             ConversionEngine.PaddleOcrCpu => "_pdc", // PaddleOCR CPU
             ConversionEngine.PaddleOcrGpu => "_pdg", // PaddleOCR GPU
+            ConversionEngine.MarkerCpu => "_mkc",    // Marker CPU
+            ConversionEngine.MarkerGpu => "_mkg",    // Marker GPU
             _ => ""
         };
         
@@ -240,6 +249,134 @@ public class ConversionService
         onProgress?.Invoke($"Running PaddleOCR{(useGpu ? " (GPU)" : "")}: {Path.GetFileName(inputPath)}");
 
         return await RunPythonProcessAsync(pythonPath, args, cancellationToken, onProgress);
+    }
+
+    private async Task<string> RunMarkerAsync(
+        string pythonPath,
+        string inputPath,
+        string outputPath,
+        bool useGpu,
+        ConversionOptions? options,
+        CancellationToken cancellationToken,
+        Action<string>? onProgress)
+    {
+        // Get marker_single executable path from venv
+        var venvDir = Path.GetDirectoryName(Path.GetDirectoryName(pythonPath));
+        var markerPath = Path.Combine(venvDir!, "Scripts", "marker_single.exe");
+        
+        if (!File.Exists(markerPath))
+        {
+            return "Error: marker_single.exe not found. Please install Marker first.";
+        }
+
+        // Create output directory (Marker requires directory)
+        var outputDir = Path.GetDirectoryName(outputPath);
+        if (!Directory.Exists(outputDir))
+        {
+            Directory.CreateDirectory(outputDir!);
+        }
+
+        // Build command arguments
+        var args = $"\"{inputPath}\" --output_dir \"{outputDir}\" --output_format markdown";
+        
+        // Add Marker-specific options
+        if (options?.MarkerDisableOcr == true)
+        {
+            args += " --disable_ocr";
+        }
+        if (options?.MarkerDisableImageExtraction == true)
+        {
+            args += " --disable_image_extraction";
+        }
+        
+        onProgress?.Invoke($"Running Marker{(useGpu ? " (GPU)" : " (CPU)")}: {Path.GetFileName(inputPath)}");
+
+        try
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = markerPath,
+                Arguments = args,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            psi.EnvironmentVariables["PYTHONUNBUFFERED"] = "1";
+            
+            // Set device based on GPU flag
+            if (!useGpu)
+            {
+                psi.EnvironmentVariables["CUDA_VISIBLE_DEVICES"] = "";
+            }
+
+            using var process = new Process { StartInfo = psi };
+            var output = new StringBuilder();
+            var error = new StringBuilder();
+
+            process.OutputDataReceived += (s, e) =>
+            {
+                if (e.Data != null)
+                {
+                    output.AppendLine(e.Data);
+                    onProgress?.Invoke(e.Data);
+                }
+            };
+            process.ErrorDataReceived += (s, e) =>
+            {
+                if (e.Data != null)
+                {
+                    error.AppendLine(e.Data);
+                }
+            };
+
+            process.Start();
+            process.BeginOutputReadLine();
+            process.BeginErrorReadLine();
+
+            await process.WaitForExitAsync(cancellationToken);
+
+            // Marker creates output in a subdirectory named after the input file
+            var inputName = Path.GetFileNameWithoutExtension(inputPath);
+            var markerOutputDir = Path.Combine(outputDir!, inputName);
+            var markerOutputFile = Path.Combine(markerOutputDir, $"{inputName}.md");
+            
+            // If output file exists in subdirectory, move it to expected location
+            if (File.Exists(markerOutputFile))
+            {
+                // Move the markdown file to the expected output path
+                File.Copy(markerOutputFile, outputPath, true);
+                
+                // Try to preserve images if any
+                var imageFiles = Directory.GetFiles(markerOutputDir, "*.jpeg")
+                    .Concat(Directory.GetFiles(markerOutputDir, "*.png"));
+                    
+                var imagesDir = Path.Combine(outputDir!, $"{Path.GetFileNameWithoutExtension(outputPath)}_images");
+                if (imageFiles.Any())
+                {
+                    Directory.CreateDirectory(imagesDir);
+                    foreach (var imageFile in imageFiles)
+                    {
+                        var destPath = Path.Combine(imagesDir, Path.GetFileName(imageFile));
+                        File.Copy(imageFile, destPath, true);
+                    }
+                    
+                    // Update image links in markdown
+                    var mdContent = await File.ReadAllTextAsync(outputPath);
+                    var updatedContent = mdContent.Replace($"({inputName}/", $"({Path.GetFileNameWithoutExtension(outputPath)}_images/");
+                    await File.WriteAllTextAsync(outputPath, updatedContent);
+                }
+                
+                // Clean up Marker's temp directory
+                try { Directory.Delete(markerOutputDir, true); } catch { }
+            }
+
+            return process.ExitCode == 0 ? output.ToString() : error.ToString();
+        }
+        catch (Exception ex)
+        {
+            return $"Error: {ex.Message}";
+        }
     }
 
     private async Task<(string output, string? outputFilePath)> RunDoclingAsync(
@@ -334,6 +471,44 @@ public class ConversionService
                 if (!string.IsNullOrEmpty(finalDir))
                 {
                     Directory.CreateDirectory(finalDir);
+                }
+                
+                // Copy image files if using referenced mode
+                if (options.ImageExportMode == ImageExportMode.ExternalFiles)
+                {
+                    // Docling creates images in the output directory with various naming patterns
+                    // Copy all image files to final destination
+                    var imageExtensions = new[] { ".png", ".jpg", ".jpeg", ".gif", ".webp" };
+                    foreach (var imgFile in Directory.GetFiles(tempOutputDir))
+                    {
+                        var ext = Path.GetExtension(imgFile).ToLower();
+                        if (imageExtensions.Contains(ext))
+                        {
+                            var destPath = Path.Combine(finalDir!, Path.GetFileName(imgFile));
+                            if (File.Exists(destPath))
+                            {
+                                File.Delete(destPath);
+                            }
+                            File.Copy(imgFile, destPath);
+                        }
+                    }
+                    
+                    // Also check for images subdirectory
+                    var imagesDir = Path.Combine(tempOutputDir, "images");
+                    if (Directory.Exists(imagesDir))
+                    {
+                        var destImagesDir = Path.Combine(finalDir!, "images");
+                        Directory.CreateDirectory(destImagesDir);
+                        foreach (var imgFile in Directory.GetFiles(imagesDir))
+                        {
+                            var destPath = Path.Combine(destImagesDir, Path.GetFileName(imgFile));
+                            if (File.Exists(destPath))
+                            {
+                                File.Delete(destPath);
+                            }
+                            File.Copy(imgFile, destPath);
+                        }
+                    }
                 }
                 
                 // Delete existing file if present
@@ -616,5 +791,9 @@ public class ConversionOptions
     /// Output file overwrite mode
     /// </summary>
     public OutputOverwriteMode OutputOverwriteMode { get; set; } = OutputOverwriteMode.Overwrite;
+    
+    // Marker-specific options
+    public bool MarkerDisableOcr { get; set; }
+    public bool MarkerDisableImageExtraction { get; set; }
 }
 

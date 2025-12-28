@@ -609,6 +609,69 @@ public class PythonEnvironmentService
         }
     }
 
+    /// <summary>
+    /// Check if Marker is installed
+    /// </summary>
+    public async Task<(bool installed, string? version)> CheckMarkerAsync(string venvPath)
+    {
+        return await CheckPackageAsync(venvPath, "marker-pdf");
+    }
+
+    /// <summary>
+    /// Run a pip command in the specified venv (public wrapper for UI calls)
+    /// </summary>
+    public async Task<(bool success, string message)> RunPipInstallAsync(string venvPath, string pipArgs, Action<string>? onProgress = null)
+    {
+        var pythonPath = GetVenvPythonPath(venvPath);
+        var result = await RunPipCommandAsync(pythonPath, pipArgs, onProgress);
+        return result.exitCode == 0 
+            ? (true, "Pip command completed successfully")
+            : (false, $"Pip command failed: {result.error}");
+    }
+
+    /// <summary>
+    /// Install Marker with model pre-download
+    /// </summary>
+    public async Task<(bool success, string message)> InstallMarkerAsync(string venvPath, Action<string>? onProgress = null)
+    {
+        var pythonPath = GetVenvPythonPath(venvPath);
+        
+        // 1. Install marker-pdf and dependencies
+        onProgress?.Invoke("Installing marker-pdf...");
+        var result = await RunPipCommandAsync(pythonPath, "install marker-pdf psutil", onProgress);
+        if (result.exitCode != 0)
+        {
+            return (false, $"Marker installation failed: {result.error}");
+        }
+        
+        // 2. Pre-download models (this takes a long time on first run)
+        onProgress?.Invoke("Downloading Marker models (layout, text_recognition, etc.)...");
+        onProgress?.Invoke("This may take 10-30 minutes on first install...");
+        
+        // Use semicolons to separate statements in one line to avoid indentation issues
+        var modelDownloadScript = "from marker.models import create_model_dict; print('Downloading models...'); artifact_dict = create_model_dict(); print('Models downloaded successfully!')";
+        
+        var modelResult = await RunPythonScriptAsync(pythonPath, $"-c \"{modelDownloadScript}\"", onProgress);
+        if (modelResult.exitCode != 0)
+        {
+            return (false, $"Model download failed: {modelResult.error}");
+        }
+        
+        return (true, "Marker installed successfully with models.");
+    }
+
+    /// <summary>
+    /// Uninstall Marker
+    /// </summary>
+    public async Task<(bool success, string message)> UninstallMarkerAsync(string venvPath, Action<string>? onProgress = null)
+    {
+        onProgress?.Invoke("Uninstalling Marker...");
+        var result = await RunPipCommandAsync(GetVenvPythonPath(venvPath), "uninstall marker-pdf -y", onProgress);
+        return result.exitCode == 0
+            ? (true, "Marker uninstalled successfully.")
+            : (false, $"Uninstall failed: {result.error}");
+    }
+
     #endregion
 
     #region Package Uninstall

@@ -82,6 +82,90 @@ def test_image_mode_choices():
     return all_ok
 
 
+def test_docling_cli_referenced_conversion():
+    """Test actual conversion with referenced image mode using Docling CLI"""
+    python = test_config.get_production_python("docling")
+    
+    if not python.exists():
+        test_config.print_result(False, "Docling venv not found, skipping conversion test")
+        return True  # Skip
+    
+    venv = test_config.get_production_venv("docling")
+    docling_cli = venv / "Scripts" / "docling.exe"
+    
+    if not docling_cli.exists():
+        test_config.print_result(False, "Docling CLI not found, skipping")
+        return True  # Skip
+    
+    # Check if fixture exists
+    fixture_path = test_config.FIXTURES_DIR / "ocr_mixed_test.pdf"
+    if not fixture_path.exists():
+        test_config.print_result(False, f"Fixture not found: {fixture_path}")
+        return True  # Skip
+    
+    # Create temp output directory
+    output_dir = test_config.ensure_output_dir()
+    output_file = output_dir / "test_image_export_referenced.md"
+    
+    # Run Docling with referenced image mode
+    test_config.print_result(True, "Running Docling CLI with --image-export-mode referenced...")
+    
+    result = subprocess.run(
+        [
+            str(docling_cli),
+            str(fixture_path),
+            "--to", "md",
+            "--output", str(output_dir),
+            "--no-ocr",
+            "--image-export-mode", "referenced",
+            "--device", "cpu"
+        ],
+        capture_output=True,
+        text=True,
+        timeout=120
+    )
+    
+    # Check if conversion succeeded
+    expected_output = output_dir / "ocr_mixed_test.md"
+    if not expected_output.exists():
+        test_config.print_result(False, f"Output file not created: {expected_output}")
+        print(f"  stderr: {result.stderr[:500]}")
+        return False
+    
+    # Read output and check for image links
+    content = expected_output.read_text(encoding='utf-8')
+    
+    # Check for image syntax in markdown
+    import re
+    image_links = re.findall(r'!\[([^\]]*)\]\(([^)]+)\)', content)
+    has_image_links = len(image_links) > 0
+    
+    test_config.print_result(has_image_links, f"Markdown contains image links: {len(image_links)} found")
+    
+    if has_image_links:
+        for alt, path in image_links[:3]:  # Show first 3
+            print(f"    ![{alt[:20]}...]({path})")
+    else:
+        print(f"  No image links found in output.")
+        print(f"  Output preview: {content[:500]}")
+    
+    # Check if image files were created
+    image_files = list(output_dir.glob("*.png")) + list(output_dir.glob("*.jpg"))
+    images_subdir = output_dir / "images"
+    if images_subdir.exists():
+        image_files.extend(images_subdir.glob("*.png"))
+        image_files.extend(images_subdir.glob("*.jpg"))
+    
+    has_image_files = len(image_files) > 0
+    test_config.print_result(has_image_files, f"Image files created: {len(image_files)} found")
+    
+    if has_image_files:
+        for img in image_files[:3]:  # Show first 3
+            print(f"    {img.name}")
+    
+    return has_image_links or has_image_files  # At least one should be true
+
+
 def main(quick=False):
     """Run all tests"""
     test_config.print_header("Test: Image Export")
@@ -91,6 +175,9 @@ def main(quick=False):
     all_passed &= test_docling_script_help()
     all_passed &= test_referenced_mode_logic()
     all_passed &= test_image_mode_choices()
+    
+    if not quick:
+        all_passed &= test_docling_cli_referenced_conversion()
     
     print()
     if all_passed:

@@ -126,12 +126,16 @@ def convert_document(input_path, output_path, use_gpu=False, force_ocr=False, en
     pipeline_options.do_ocr = enable_ocr  # Control OCR via parameter
     if enable_ocr:
         pipeline_options.ocr_options = rapidocr_options
+    else:
+        # When OCR is disabled, also disable table structure detection
+        # This allows tables to be treated as images
+        pipeline_options.do_table_structure = False
     
     # Image export mode
     if image_mode in ("embedded", "referenced"):
         pipeline_options.images_scale = 1.0
         pipeline_options.generate_picture_images = True
-        pipeline_options.generate_table_images = True
+        pipeline_options.generate_page_images = True  # Also generate page images
     
     # Configure format options
     pdf_options = PdfFormatOption(
@@ -162,68 +166,30 @@ def convert_document(input_path, output_path, use_gpu=False, force_ocr=False, en
         
         print(f"  Detected: {len(result.document.pictures)} pictures, {len(result.document.tables)} tables")
         
-        # Prepare output directory for images
+        # Prepare output directory
         output_dir = os.path.dirname(output_path)
         if output_dir:
             os.makedirs(output_dir, exist_ok=True)
         
         # Export to Markdown based on image mode
-        if image_mode == "embedded":
-            markdown_content = result.document.export_to_markdown(image_mode=ImageRefMode.EMBEDDED)
-        elif image_mode == "referenced":
-            # Use REFERENCED mode and save images to files
-            markdown_content = result.document.export_to_markdown(image_mode=ImageRefMode.REFERENCED)
-            
-            # Create images directory
-            output_basename = os.path.splitext(os.path.basename(output_path))[0]
-            images_dir_name = f"{output_basename}_images"
-            images_dir = os.path.join(output_dir or ".", images_dir_name)
-            os.makedirs(images_dir, exist_ok=True)
-            
-            # Save pictures
-            saved_count = 0
-            for i, picture in enumerate(result.document.pictures):
-                try:
-                    image = picture.get_image(result.document)
-                    if image:
-                        filename = f"picture_{i+1}.png"
-                        image_path = os.path.join(images_dir, filename)
-                        image.save(image_path, "PNG")
-                        saved_count += 1
-                except Exception as e:
-                    print(f"  Warning: Failed to save picture {i+1}: {e}")
-            
-            # Save tables as images
-            for i, table in enumerate(result.document.tables):
-                try:
-                    image = table.get_image(result.document)
-                    if image:
-                        filename = f"table_{i+1}.png"
-                        image_path = os.path.join(images_dir, filename)
-                        image.save(image_path, "PNG")
-                        saved_count += 1
-                except Exception as e:
-                    print(f"  Warning: Failed to save table {i+1}: {e}")
-            
-            print(f"  Saved {saved_count} images to {images_dir}")
-            
-            # Fix image paths in markdown to use relative paths
-            # Docling may use absolute paths or different naming conventions
-            # Replace with our consistent naming
-            import re
-            # Replace image paths with correct relative paths
-            markdown_content = re.sub(
-                r'!\[([^\]]*)\]\([^)]+/([^/)]+)\)',
-                lambda m: f'![{m.group(1)}]({images_dir_name}/{m.group(2)})',
-                markdown_content
-            )
-        else:
-            # Placeholder mode - no images
-            markdown_content = result.document.export_to_markdown()
+        # Use save_as_markdown for REFERENCED mode (automatically saves images as files)
+        # Use export_to_markdown for EMBEDDED mode (returns markdown string with base64 images)
+        from pathlib import Path
         
-        # Write output to final destination
-        with open(output_path, 'w', encoding='utf-8') as f:
-            f.write(markdown_content)
+        if image_mode == "embedded":
+            # Embedded mode: use export_to_markdown and write manually
+            markdown_content = result.document.export_to_markdown(image_mode=ImageRefMode.EMBEDDED)
+            with open(output_path, 'w', encoding='utf-8') as f:
+                f.write(markdown_content)
+        elif image_mode == "referenced":
+            # Referenced mode: use save_as_markdown which automatically saves images
+            result.document.save_as_markdown(Path(output_path), image_mode=ImageRefMode.REFERENCED)
+            print(f"  Images saved alongside markdown file")
+        else:
+            # Placeholder mode: no images
+            markdown_content = result.document.export_to_markdown()
+            with open(output_path, 'w', encoding='utf-8') as f:
+                f.write(markdown_content)
         
         print(f"Conversion complete: {output_path}")
         return True

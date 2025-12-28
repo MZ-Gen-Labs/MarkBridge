@@ -66,6 +66,25 @@
                             <span class="text-muted small">→ _pdg.md</span>
                         </label>
                     </div>
+                    @if (AppState.MarkerLicenseAccepted)
+                    {
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="useMarkerCpu" 
+                                   checked="@useMarkerCpu" @onchange="e => OnEngineToggle(ConversionEngine.MarkerCpu, (bool)(e.Value ?? false))">
+                            <label class="form-check-label" for="useMarkerCpu">
+                                <i class="bi bi-file-earmark-pdf text-purple me-1"></i>Marker (CPU)
+                                <span class="text-muted small">→ _mkc.md</span>
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="useMarkerGpu" 
+                                   checked="@useMarkerGpu" @onchange="e => OnEngineToggle(ConversionEngine.MarkerGpu, (bool)(e.Value ?? false))">
+                            <label class="form-check-label" for="useMarkerGpu">
+                                <i class="bi bi-gpu-card text-purple me-1"></i>Marker (GPU)
+                                <span class="text-muted small">→ _mkg.md</span>
+                            </label>
+                        </div>
+                    }
                     @if (!HasEngineSelected)
                     {
                         <div class="text-danger small mt-1">
@@ -137,6 +156,28 @@
                             <label class="form-check-label small" for="imageExternal">Files</label>
                         </div>
                     </div>
+                    
+                    @if (useMarkerCpu || useMarkerGpu)
+                    {
+                        <div class="mt-3 border-top pt-2">
+                            <p class="text-muted small mb-2">For Marker engines:</p>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="markerDisableOcr" @bind="markerDisableOcr">
+                                <label class="form-check-label small" for="markerDisableOcr">Disable OCR</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="markerDisableImages" @bind="markerDisableImages">
+                                <label class="form-check-label small" for="markerDisableImages">Disable image extraction</label>
+                            </div>
+                            @if (useMarkerGpu)
+                            {
+                                <div class="alert alert-info small mt-2 mb-0 py-1 px-2">
+                                    <i class="bi bi-info-circle me-1"></i>
+                                    GPU requires PyTorch+CUDA. Install via Settings.
+                                </div>
+                            }
+                        </div>
+                    }
                 </div>
 
                 <!-- Output Mode -->
@@ -360,6 +401,16 @@
         get => AppState.UsePaddleOcrGpu;
         set => AppState.UsePaddleOcrGpu = value;
     }
+    private bool useMarkerCpu
+    {
+        get => AppState.UseMarkerCpu;
+        set => AppState.UseMarkerCpu = value;
+    }
+    private bool useMarkerGpu
+    {
+        get => AppState.UseMarkerGpu;
+        set => AppState.UseMarkerGpu = value;
+    }
     
     // Engine-specific options - now bound to AppState for persistence
     private bool enableOcr
@@ -393,6 +444,10 @@
         set => AppState.UseRapidOcrV5 = value;
     }
     
+    // Marker-specific options
+    private bool markerDisableOcr = false;
+    private bool markerDisableImages = false;
+    
     // Output options - now bound to AppState for persistence
     private bool useOriginalFolder
     {
@@ -415,7 +470,7 @@
     private Action<List<string>>? _dropHandler;
 
     private int SelectedCount => queueItems.Count(x => x.IsSelected);
-    private bool HasEngineSelected => useMarkItDown || useDocling || useDoclingGpu || usePaddleOcrCpu || usePaddleOcrGpu;
+    private bool HasEngineSelected => useMarkItDown || useDocling || useDoclingGpu || usePaddleOcrCpu || usePaddleOcrGpu || useMarkerCpu || useMarkerGpu;
 
     // Supported file extensions
     private static readonly HashSet<string> SupportedExtensions = new(StringComparer.OrdinalIgnoreCase)
@@ -559,6 +614,8 @@
         if (useDoclingGpu) engines.Add(MarkBridge.Services.ConversionEngine.DoclingGpu);
         if (usePaddleOcrCpu) engines.Add(MarkBridge.Services.ConversionEngine.PaddleOcrCpu);
         if (usePaddleOcrGpu) engines.Add(MarkBridge.Services.ConversionEngine.PaddleOcrGpu);
+        if (useMarkerCpu) engines.Add(MarkBridge.Services.ConversionEngine.MarkerCpu);
+        if (useMarkerGpu) engines.Add(MarkBridge.Services.ConversionEngine.MarkerGpu);
         return engines;
     }
 
@@ -598,6 +655,12 @@
                 break;
             case ConversionEngine.PaddleOcrGpu:
                 AppState.UsePaddleOcrGpu = isChecked;
+                break;
+            case ConversionEngine.MarkerCpu:
+                AppState.UseMarkerCpu = isChecked;
+                break;
+            case ConversionEngine.MarkerGpu:
+                AppState.UseMarkerGpu = isChecked;
                 break;
             // Future engines can be added here
         }
@@ -751,7 +814,9 @@
             ImageExportMode = imageExportMode,
             UseEasyOcr = useEasyOcr,
             UseRapidOcr = useRapidOcr,
-            OutputOverwriteMode = outputOverwriteMode
+            OutputOverwriteMode = outputOverwriteMode,
+            MarkerDisableOcr = markerDisableOcr,
+            MarkerDisableImageExtraction = markerDisableImages
         };
 
         // Start the elapsed time timer for live updates
