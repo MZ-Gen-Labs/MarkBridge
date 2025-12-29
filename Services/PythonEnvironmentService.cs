@@ -308,10 +308,8 @@ public class PythonEnvironmentService
     /// </summary>
     public async Task<(bool success, string message)> InstallDoclingAsync(string venvPath, Action<string>? onProgress = null)
     {
-        // Use forked version with table image export support
-        // See: https://github.com/MZ-Gen-Labs/docling
-        onProgress?.Invoke("Installing Docling (MZ-Gen-Labs fork with table image export)...");
-        var result = await RunPipCommandAsync(GetVenvPythonPath(venvPath), "install git+https://github.com/MZ-Gen-Labs/docling.git", onProgress);
+        onProgress?.Invoke("Installing Docling...");
+        var result = await RunPipCommandAsync(GetVenvPythonPath(venvPath), "install docling", onProgress);
         if (result.exitCode != 0)
         {
             return (false, $"Docling installation failed: {result.error}");
@@ -325,7 +323,7 @@ public class PythonEnvironmentService
             return (false, $"onnxruntime installation failed: {onnxResult.error}");
         }
 
-        return (true, "Docling (with table image export) installed successfully.");
+        return (true, "Docling installed successfully.");
     }
 
     /// <summary>
