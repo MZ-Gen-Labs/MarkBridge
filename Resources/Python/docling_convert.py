@@ -187,18 +187,24 @@ def convert_document(input_path, output_path, use_gpu=False, force_ocr=False, en
             result.document.save_as_markdown(Path(output_path), image_mode=ImageRefMode.REFERENCED)
             print(f"  Images saved alongside markdown file")
             
-            # Save table images
+            # Create images folder based on output filename (e.g., test.md -> test/)
+            output_basename = Path(output_path).stem
             output_dir_path = Path(output_dir) if output_dir else Path(".")
+            images_folder = output_dir_path / output_basename
+            images_folder.mkdir(parents=True, exist_ok=True)
+            
+            # Save table images to the basename folder
             tables_saved = []
             for i, table in enumerate(result.document.tables):
                 if hasattr(table, 'image') and table.image is not None:
                     table_img_name = f"table_{i}.png"
-                    table_img_path = output_dir_path / table_img_name
+                    table_img_path = images_folder / table_img_name
                     table.image.pil_image.save(table_img_path)
-                    tables_saved.append(table_img_name)
+                    # Store relative path from markdown file location
+                    tables_saved.append(f"{output_basename}/{table_img_name}")
             
             if tables_saved:
-                print(f"  Saved {len(tables_saved)} table images")
+                print(f"  Saved {len(tables_saved)} table images to {images_folder}")
                 
                 # Insert table image links into markdown file
                 with open(output_path, 'r', encoding='utf-8') as f:

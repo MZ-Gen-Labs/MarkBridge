@@ -585,7 +585,63 @@
                 .UseAutoLinks()
                 .UseEmphasisExtras()
                 .Build();
-            renderedMarkdown = Markdig.Markdown.ToHtml(editorContent, pipeline);
+            var html = Markdig.Markdown.ToHtml(editorContent, pipeline);
+            
+            // Convert relative image paths to base64 data URIs for WebView rendering
+            if (selectedFile != null && !string.IsNullOrEmpty(selectedFile.Path))
+            {
+                var fileDir = Path.GetDirectoryName(selectedFile.Path);
+                if (!string.IsNullOrEmpty(fileDir))
+                {
+                    // Replace relative image paths with base64 data URIs
+                    html = System.Text.RegularExpressions.Regex.Replace(
+                        html,
+                        @"<img\s+([^>]*)src=""([^""]+)""",
+                        match =>
+                        {
+                            var attrs = match.Groups[1].Value;
+                            var src = match.Groups[2].Value;
+                            
+                            // Skip if already data URI or absolute URL
+                            if (src.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                                src.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
+                                src.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
+                            {
+                                return match.Value;
+                            }
+                            
+                            try
+                            {
+                                // Convert relative path to absolute and read as base64
+                                var absolutePath = Path.GetFullPath(Path.Combine(fileDir, src));
+                                if (File.Exists(absolutePath))
+                                {
+                                    var bytes = File.ReadAllBytes(absolutePath);
+                                    var base64 = System.Convert.ToBase64String(bytes);
+                                    var ext = Path.GetExtension(absolutePath).ToLower();
+                                    var mimeType = ext switch
+                                    {
+                                        ".png" => "image/png",
+                                        ".jpg" or ".jpeg" => "image/jpeg",
+                                        ".gif" => "image/gif",
+                                        ".webp" => "image/webp",
+                                        ".svg" => "image/svg+xml",
+                                        _ => "image/png"
+                                    };
+                                    return $"<img {attrs}src=\"data:{mimeType};base64,{base64}\"";
+                                }
+                            }
+                            catch
+                            {
+                                // If file read fails, keep original src
+                            }
+                            
+                            return match.Value;
+                        });
+                }
+            }
+            
+            renderedMarkdown = html;
         }
         catch
         {

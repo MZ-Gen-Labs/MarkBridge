@@ -388,153 +388,66 @@ public class ConversionService
         CancellationToken cancellationToken,
         Action<string>? onProgress)
     {
-        // Get docling executable path from venv
-        var venvDir = Path.GetDirectoryName(Path.GetDirectoryName(pythonPath));
-        var doclingPath = Path.Combine(venvDir!, "Scripts", "docling.exe");
+        // Get docling_convert.py script path
+        var scriptPath = Path.Combine(AppContext.BaseDirectory, "Resources", "Python", "docling_convert.py");
         
-        if (!File.Exists(doclingPath))
+        if (!File.Exists(scriptPath))
         {
-            return ("Docling CLI not found. Please install Docling first.", null);
+            return ("Docling conversion script not found. Please reinstall MarkBridge.", null);
         }
 
-        // Create unique temp directory to avoid conflicts in parallel processing
-        var tempDir = Path.Combine(Path.GetTempPath(), $"docling_{Guid.NewGuid():N}");
-        Directory.CreateDirectory(tempDir);
-        
-        // Separate input and output temp directories
-        var tempInputDir = Path.Combine(tempDir, "input");
-        var tempOutputDir = Path.Combine(tempDir, "output");
-        Directory.CreateDirectory(tempInputDir);
-        Directory.CreateDirectory(tempOutputDir);
-
-        try
+        // Prepare output directory
+        var finalDir = Path.GetDirectoryName(finalOutputPath);
+        if (!string.IsNullOrEmpty(finalDir))
         {
-            // Copy input file to temp directory to avoid file access conflicts
-            // when multiple engines process the same file simultaneously
-            var inputFileName = Path.GetFileName(inputPath);
-            var tempInputPath = Path.Combine(tempInputDir, inputFileName);
-            File.Copy(inputPath, tempInputPath);
-            
-            // Build docling command arguments
-            var sb = new StringBuilder();
-            sb.Append($"\"{tempInputPath}\" --to md --output \"{tempOutputDir}\"");
-
-            if (options.EnableOcr)
-            {
-                // Determine OCR engine - if both selected, use EasyOCR (caller should create separate queue items)
-                var ocrEngine = options.UseEasyOcr ? "easyocr" : (options.UseRapidOcr ? "rapidocr" : "easyocr");
-                sb.Append($" --ocr-engine {ocrEngine} --ocr-lang ja,en");
-                
-                // Force OCR for all pages (useful for scanned documents)
-                if (options.ForceFullPageOcr)
-                {
-                    sb.Append(" --force-ocr");
-                }
-            }
-            else
-            {
-                // Explicitly disable OCR
-                sb.Append(" --no-ocr");
-            }
-
-            // Image export mode: none (placeholder), embedded (base64), or external files (referenced)
-            var imageMode = options.ImageExportMode switch
-            {
-                ImageExportMode.Embedded => "embedded",
-                ImageExportMode.ExternalFiles => "referenced",
-                _ => "placeholder"  // None or default
-            };
-            sb.Append($" --image-export-mode {imageMode}");
-
-            // Explicitly set device to prevent Docling from auto-detecting GPU
-            if (useGpu)
-            {
-                sb.Append(" --device cuda");
-            }
-            else
-            {
-                sb.Append(" --device cpu");
-            }
-
-            onProgress?.Invoke($"Running Docling{(useGpu ? " (GPU)" : "")}: {Path.GetFileName(inputPath)}");
-
-            var result = await RunProcessAsync(doclingPath, sb.ToString(), cancellationToken, onProgress);
-
-            // Find the output file in temp directory
-            var expectedTempOutput = Path.Combine(tempOutputDir, 
-                Path.GetFileNameWithoutExtension(inputPath) + ".md");
-            
-            if (File.Exists(expectedTempOutput))
-            {
-                // Move to final destination
-                var finalDir = Path.GetDirectoryName(finalOutputPath);
-                if (!string.IsNullOrEmpty(finalDir))
-                {
-                    Directory.CreateDirectory(finalDir);
-                }
-                
-                // Copy image files if using referenced mode
-                if (options.ImageExportMode == ImageExportMode.ExternalFiles)
-                {
-                    // Docling creates images in the output directory with various naming patterns
-                    // Copy all image files to final destination
-                    var imageExtensions = new[] { ".png", ".jpg", ".jpeg", ".gif", ".webp" };
-                    foreach (var imgFile in Directory.GetFiles(tempOutputDir))
-                    {
-                        var ext = Path.GetExtension(imgFile).ToLower();
-                        if (imageExtensions.Contains(ext))
-                        {
-                            var destPath = Path.Combine(finalDir!, Path.GetFileName(imgFile));
-                            if (File.Exists(destPath))
-                            {
-                                File.Delete(destPath);
-                            }
-                            File.Copy(imgFile, destPath);
-                        }
-                    }
-                    
-                    // Also check for images subdirectory
-                    var imagesDir = Path.Combine(tempOutputDir, "images");
-                    if (Directory.Exists(imagesDir))
-                    {
-                        var destImagesDir = Path.Combine(finalDir!, "images");
-                        Directory.CreateDirectory(destImagesDir);
-                        foreach (var imgFile in Directory.GetFiles(imagesDir))
-                        {
-                            var destPath = Path.Combine(destImagesDir, Path.GetFileName(imgFile));
-                            if (File.Exists(destPath))
-                            {
-                                File.Delete(destPath);
-                            }
-                            File.Copy(imgFile, destPath);
-                        }
-                    }
-                }
-                
-                // Delete existing file if present
-                if (File.Exists(finalOutputPath))
-                {
-                    File.Delete(finalOutputPath);
-                }
-                
-                File.Move(expectedTempOutput, finalOutputPath);
-                return (result, finalOutputPath);
-            }
-            
-            return (result, null);
+            Directory.CreateDirectory(finalDir);
         }
-        finally
+
+        // Build script arguments
+        var sb = new StringBuilder();
+        sb.Append($"\"{scriptPath}\" \"{inputPath}\" \"{finalOutputPath}\"");
+
+        // OCR options
+        if (options.EnableOcr)
         {
-            // Cleanup temp directory
-            try
+            // Force OCR for all pages (useful for scanned documents)
+            if (options.ForceFullPageOcr)
             {
-                if (Directory.Exists(tempDir))
-                {
-                    Directory.Delete(tempDir, true);
-                }
+                sb.Append(" --force-ocr");
             }
-            catch { }
         }
+        else
+        {
+            // Explicitly disable OCR
+            sb.Append(" --no-ocr");
+        }
+
+        // Image export mode
+        var imageMode = options.ImageExportMode switch
+        {
+            ImageExportMode.Embedded => "embedded",
+            ImageExportMode.ExternalFiles => "referenced",
+            _ => "placeholder"
+        };
+        sb.Append($" --image-mode {imageMode}");
+
+        // GPU acceleration
+        if (useGpu)
+        {
+            sb.Append(" --gpu");
+        }
+
+        onProgress?.Invoke($"Running Docling{(useGpu ? " (GPU)" : "")}: {Path.GetFileName(inputPath)}");
+
+        var result = await RunPythonProcessAsync(pythonPath, sb.ToString(), cancellationToken, onProgress);
+
+        // Check if output file was created
+        if (File.Exists(finalOutputPath))
+        {
+            return (result, finalOutputPath);
+        }
+
+        return (result, null);
     }
 
     private async Task<string> RunRapidOcrV5Async(
